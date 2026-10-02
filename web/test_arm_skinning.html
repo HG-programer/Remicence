@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Rem Arm Skeletal Rigging Test</title>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+    <style>
+        body { margin: 0; background: #38bdf8; overflow: hidden; font-family: sans-serif; }
+        #ui {
+            position: absolute; top: 15px; left: 15px; background: rgba(15,23,42,0.85);
+            color: white; padding: 15px 20px; border-radius: 10px; font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div id="ui">
+        <div style="font-weight: bold; font-size: 16px;">🌸 Re:Zero Maid Stance Skeletal Test</div>
+        <div id="status">Loading...</div>
+    </div>
+    <script>
+        const statusEl = document.getElementById('status');
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+        camera.position.set(0, 1.25, 2.3);
+        camera.lookAt(0, 1.05, 0);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.outputEncoding = THREE.sRGBEncoding;
+        document.body.appendChild(renderer.domElement);
+
+        scene.add(new THREE.AmbientLight(0xffffff, 0.95));
+        const sun = new THREE.DirectionalLight(0xffffff, 1.1);
+        sun.position.set(5, 12, 6);
+        scene.add(sun);
+
+        const grid = new THREE.GridHelper(10, 20, 0x0284c7, 0x64748b);
+        scene.add(grid);
+
+        let leftUpperArm, leftForearm, leftHand;
+        let rightUpperArm, rightForearm, rightHand;
+
+        const loader = new THREE.GLTFLoader();
+        loader.load('models/Rem.glb', (gltf) => {
+            const rawModel = gltf.scene;
+            const fullGroup = new THREE.Group();
+            scene.add(fullGroup);
+
+            // Arm bones
+            // Root (0,0,0)
+            const root = new THREE.Bone();
+            root.position.set(0, 0, 0);
+
+            // Chest at (0, 14.8, 0.2)
+            const chest = new THREE.Bone();
+            chest.position.set(0, 14.8, 0.2);
+            root.add(chest);
+
+            // Left Arm Chain
+            leftUpperArm = new THREE.Bone();
+            leftUpperArm.position.set(1.9, 0, 0);
+            chest.add(leftUpperArm);
+
+            leftForearm = new THREE.Bone();
+            leftForearm.position.set(0.3, -1.8, 0.4);
+            leftUpperArm.add(leftForearm);
+
+            leftHand = new THREE.Bone();
+            leftHand.position.set(0, -1.8, 0);
+            leftForearm.add(leftHand);
+
+            // Right Arm Chain
+            rightUpperArm = new THREE.Bone();
+            rightUpperArm.position.set(-1.9, 0, 0);
+            chest.add(rightUpperArm);
+
+            rightForearm = new THREE.Bone();
+            rightForearm.position.set(-0.3, -1.8, 0.4);
+            rightUpperArm.add(rightForearm);
+
+            rightHand = new THREE.Bone();
+            rightHand.position.set(0, -1.8, 0);
+            rightForearm.add(rightHand);
+
+            // Bone indices:
+            // 0: root, 1: chest
+            // 2: leftUpperArm, 3: leftForearm, 4: leftHand
+            // 5: rightUpperArm, 6: rightForearm, 7: rightHand
+            const bones = [root, chest, leftUpperArm, leftForearm, leftHand, rightUpperArm, rightForearm, rightHand];
+            const skeleton = new THREE.Skeleton(bones);
+
+            rawModel.traverse((child) => {
+                if (child.isMesh) {
+                    const name = (child.name || '').toLowerCase();
+                    if (name.includes('edge')) return;
+                    if (name.includes('mouth2') || name.includes('mouth3')) child.visible = false;
+                    if (child.material) {
+                        child.material.side = THREE.DoubleSide;
+                        if (child.material.map) child.material.map.encoding = THREE.sRGBEncoding;
+                    }
+
+                    // Skin arm meshes: HandFrill and Hand1
+                    const isArmMesh = name.includes('handfrill') || name.includes('hand1');
+                    if (isArmMesh) {
+                        const geo = child.geometry.clone();
+                        const pos = geo.attributes.position;
+                        const skinIndices = [];
+                        const skinWeights = [];
+
+                        for (let i = 0; i < pos.count; i++) {
+                            const vx = pos.getX(i);
+                            const vy = pos.getY(i);
+
+                            if (vx > 0) {
+                                // Left Arm
+                                if (vy > 12.8) {
+                                    skinIndices.push(2, 3, 0, 0);
+                                    skinWeights.push(0.8, 0.2, 0, 0);
+                                } else if (vy > 11.6) {
+                                    skinIndices.push(3, 4, 2, 0);
+                                    skinWeights.push(0.7, 0.2, 0.1, 0);
+                                } else {
+                                    skinIndices.push(4, 3, 0, 0);
+                                    skinWeights.push(0.85, 0.15, 0, 0);
+                                }
+                            } else {
+                                // Right Arm
+                                if (vy > 12.8) {
+                                    skinIndices.push(5, 6, 0, 0);
+                                    skinWeights.push(0.8, 0.2, 0, 0);
+                                } else if (vy > 11.6) {
+                                    skinIndices.push(6, 7, 5, 0);
+                                    skinWeights.push(0.7, 0.2, 0.1, 0);
+                                } else {
+                                    skinIndices.push(7, 6, 0, 0);
+                                    skinWeights.push(0.85, 0.15, 0, 0);
+                                }
+                            }
+                        }
+
+                        geo.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(skinIndices, 4));
+                        geo.setAttribute('skinWeight', new THREE.Float32BufferAttribute(skinWeights, 4));
+
+                        const mat = child.material.clone();
+                        mat.skinning = true;
+
+                        const skinned = new THREE.SkinnedMesh(geo, mat);
+                        skinned.add(root);
+                        skinned.bind(skeleton);
+                        fullGroup.add(skinned);
+                    } else {
+                        fullGroup.add(child.clone());
+                    }
+                }
+            });
+
+            // Re:Zero Maid Folded-Hands Pose Angles
+            // Left Arm
+            leftUpperArm.rotation.set(0.25, -0.20, -0.45);
+            leftForearm.rotation.set(0.75, 0.40, 0.65);
+            leftHand.rotation.set(0.15, 0.20, 0.10);
+
+            // Right Arm
+            rightUpperArm.rotation.set(0.25, 0.20, 0.45);
+            rightForearm.rotation.set(0.75, -0.40, -0.65);
+            rightHand.rotation.set(0.15, -0.20, -0.10);
+
+            const scale = 1.54 / 21.05;
+            fullGroup.scale.setScalar(scale);
+
+            const box = new THREE.Box3().setFromObject(fullGroup);
+            fullGroup.position.y = -box.min.y;
+            fullGroup.position.x = -(box.min.x + box.max.x) / 2;
+            fullGroup.position.z = -(box.min.z + box.max.z) / 2;
+
+            statusEl.innerText = "🌸 Arm Skeleton & Maid Pose Active!";
+            console.log("ARM SKELETON READY");
+        });
+
+        function animate() {
+            requestAnimationFrame(animate);
+            renderer.render(scene, camera);
+        }
+        animate();
+    </script>
+</body>
+</html>

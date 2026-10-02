@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Rem Re:Zero Authentic Maid Stance Test</title>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+    <style>
+        body { margin: 0; background: #38bdf8; overflow: hidden; font-family: sans-serif; }
+        #ui {
+            position: absolute; top: 15px; left: 15px; background: rgba(15,23,42,0.85);
+            color: white; padding: 15px 20px; border-radius: 10px; font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div id="ui">
+        <div style="font-weight: bold; font-size: 16px;">🌸 Re:Zero Authentic Maid Folded-Hands Stance</div>
+        <div id="status">Loading Rem Authentic Model...</div>
+    </div>
+    <script>
+        const statusEl = document.getElementById('status');
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+        camera.position.set(0, 1.25, 2.3);
+        camera.lookAt(0, 1.05, 0);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.outputEncoding = THREE.sRGBEncoding;
+        document.body.appendChild(renderer.domElement);
+
+        scene.add(new THREE.AmbientLight(0xffffff, 0.95));
+        const sun = new THREE.DirectionalLight(0xffffff, 1.1);
+        sun.position.set(5, 12, 6);
+        scene.add(sun);
+
+        const grid = new THREE.GridHelper(10, 20, 0x0284c7, 0x64748b);
+        scene.add(grid);
+
+        // Rotation matrix around an arbitrary axis
+        function createAxisAngleMatrix(axis, angle) {
+            const m = new THREE.Matrix4();
+            m.makeRotationAxis(axis.clone().normalize(), angle);
+            return m;
+        }
+
+        function poseArmVertices(geo, isEdge) {
+            const pos = geo.attributes.position;
+            const v = new THREE.Vector3();
+
+            for (let i = 0; i < pos.count; i++) {
+                v.fromBufferAttribute(pos, i);
+
+                // Left Arm: X > 1.6 and Y < 14.8
+                if (v.x > 1.6 && v.y < 14.8) {
+                    const t = THREE.MathUtils.clamp((14.8 - v.y) / 2.6, 0.0, 1.0);
+                    const s = t * t * (3.0 - 2.0 * t); // Smooth Hermite curve
+                    v.x += s * -2.25;
+                    v.y += s * -0.40;
+                    v.z += s * 1.35;
+                    pos.setXYZ(i, v.x, v.y, v.z);
+                }
+                // Right Arm: X < -1.6 and Y < 14.8
+                else if (v.x < -1.6 && v.y < 14.8) {
+                    const t = THREE.MathUtils.clamp((14.8 - v.y) / 2.6, 0.0, 1.0);
+                    const s = t * t * (3.0 - 2.0 * t); // Smooth Hermite curve
+                    v.x += s * 2.25;
+                    v.y += s * -0.40;
+                    v.z += s * 1.35;
+                    pos.setXYZ(i, v.x, v.y, v.z);
+                }
+            }
+            pos.needsUpdate = true;
+            geo.computeVertexNormals();
+        }
+
+        const loader = new THREE.GLTFLoader();
+        loader.load('models/Rem.glb', (gltf) => {
+            const model = gltf.scene;
+
+            model.traverse((child) => {
+                if (child.isMesh) {
+                    const name = (child.name || '').toLowerCase();
+                    if (name.includes('edge')) {
+                        child.visible = false;
+                        return;
+                    }
+                    if (name.includes('mouth2') || name.includes('mouth3')) child.visible = false;
+
+                    if (child.material) {
+                        child.material.side = THREE.DoubleSide;
+                        if (child.material.map) child.material.map.encoding = THREE.sRGBEncoding;
+                    }
+
+                    // Only pose Body arm sleeves, HandFrill wrist cuffs, and Hand1 actual hands
+                    // Exclude Hand2 (which is collar frill), Head, Skirt, etc.
+                    const isArmMesh = name.includes('body') || name.includes('handfrill') || name.includes('hand1');
+                    if (isArmMesh) {
+                        child.geometry = child.geometry.clone();
+                        poseArmVertices(child.geometry, false);
+                    }
+                }
+            });
+
+            // Scale to canonical Rem height (1.54m)
+            const box = new THREE.Box3().setFromObject(model);
+            const size = new THREE.Vector3();
+            box.getSize(size);
+            const scaleFactor = 1.54 / size.y;
+            model.scale.multiplyScalar(scaleFactor);
+
+            const newBox = new THREE.Box3().setFromObject(model);
+            model.position.y = -newBox.min.y;
+            model.position.x = -(newBox.min.x + newBox.max.x) / 2;
+            model.position.z = -(newBox.min.z + newBox.max.z) / 2;
+
+            scene.add(model);
+            statusEl.innerText = "🌸 Authentic Re:Zero Maid Folded-Hands Pose Active!";
+            console.log("MAID POSE OK");
+        });
+
+        function animate() {
+            requestAnimationFrame(animate);
+            renderer.render(scene, camera);
+        }
+        animate();
+    </script>
+</body>
+</html>

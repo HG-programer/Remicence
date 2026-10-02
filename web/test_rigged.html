@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+<head>
+<script src="libs/three.min.js"></script>
+<script src="libs/GLTFLoader.js"></script>
+<script src="libs/OrbitControls.js"></script>
+<style>body { margin:0; background: #222; }</style>
+</head>
+<body>
+<script>
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 100);
+camera.position.set(0, 1.3, 2.5);
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.outputEncoding = THREE.sRGBEncoding;
+document.body.appendChild(renderer.domElement);
+
+const light = new THREE.DirectionalLight(0xffffff, 1.5);
+light.position.set(2, 5, 3);
+scene.add(light);
+scene.add(new THREE.AmbientLight(0xffffff, 0.8));
+
+const loader = new THREE.GLTFLoader();
+loader.load('models/rem_rigged.glb', (gltf) => {
+    const model = gltf.scene;
+    // center and scale
+    const box = new THREE.Box3().setFromObject(model);
+    const size = new THREE.Vector3();
+    box.getSize(size);
+    const scale = 1.54 / (size.y || 1);
+    model.scale.multiplyScalar(scale);
+    const newBox = new THREE.Box3().setFromObject(model);
+    model.position.y = -newBox.min.y;
+    model.position.x = -(newBox.min.x + newBox.max.x) / 2;
+    model.position.z = -(newBox.min.z + newBox.max.z) / 2;
+    scene.add(model);
+    console.log("Model loaded successfully, size:", size);
+});
+
+function animate() {
+    requestAnimationFrame(animate);
+    renderer.render(scene, camera);
+}
+animate();
+</script>
+</body>
+</html>

@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Skeletal Rem Test</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: #222; }
+        #canvas { width: 100vw; height: 100vh; display: block; }
+        #info { position: absolute; top: 10px; left: 10px; color: white; font-family: sans-serif; background: rgba(0,0,0,0.7); padding: 10px; border-radius: 8px; }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+</head>
+<body>
+    <div id="info">Skeletal Rem Test: Loading...</div>
+    <div id="canvas"></div>
+
+    <script>
+        const info = document.getElementById('info');
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x38bdf8);
+
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+        camera.position.set(0, 1.2, 2.5);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.0;
+        renderer.outputEncoding = THREE.sRGBEncoding;
+        document.getElementById('canvas').appendChild(renderer.domElement);
+
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.target.set(0, 1.0, 0);
+
+        // Lighting
+        const hemi = new THREE.HemisphereLight(0xffffff, 0x444444, 0.9);
+        scene.add(hemi);
+        const sun = new THREE.DirectionalLight(0xfff5ea, 1.2);
+        sun.position.set(5, 10, 7);
+        scene.add(sun);
+        const fill = new THREE.DirectionalLight(0xe0f2fe, 0.6);
+        fill.position.set(-5, 5, -5);
+        scene.add(fill);
+
+        // Ground grid
+        const grid = new THREE.GridHelper(10, 20, 0xffffff, 0x555555);
+        scene.add(grid);
+
+        let riggedBody = null;
+        let authenticHead = null;
+        let headBone = null;
+        let bones = {};
+
+        const loader = new THREE.GLTFLoader();
+
+        // 1. Load Rigged Humanoid Body
+        loader.load('models/rem_rigged.glb', (gltf) => {
+            riggedBody = gltf.scene;
+            info.innerText = "Loaded rigged body. Processing bones & meshes...";
+
+            // Find all bones and hide original VRoid face/hair
+            riggedBody.traverse((child) => {
+                if (child.isBone) {
+                    bones[child.name] = child;
+                    if (child.name === 'J_Bip_C_Head') headBone = child;
+                }
+                if (child.isMesh || child.isSkinnedMesh) {
+                    child.castShadow = true;
+                    child.receiveShadow = true;
+
+                    const mname = (child.name || '').toLowerCase();
+                    const matName = (child.material && child.material.name ? child.material.name : '').toLowerCase();
+
+                    // Hide original VRoid face and hair (leaving only the body & outfit)
+                    if (mname.includes('face') || mname.includes('hair') || 
+                        matName.includes('face') || matName.includes('hair') || matName.includes('eye')) {
+                        child.visible = false;
+                    }
+                    if (child.material) {
+                        child.material.side = THREE.DoubleSide;
+                    }
+                }
+            });
+
+            scene.add(riggedBody);
+            console.log("Bones found:", Object.keys(bones));
+            console.log("Head bone:", headBone);
+
+            // 2. Load Authentic Head
+            loader.load('models/Rem_authentic_standalone.glb', (authGltf) => {
+                const authScene = authGltf.scene;
+                const headGroup = new THREE.Group();
+                headGroup.name = "AuthenticAnimeHead";
+
+                // Extract only head meshes from authentic model
+                const headMeshNames = ['face', 'hair', 'backhair', 'acce', 'eye', 'whiteeye', 'mouth', 'nose'];
+                
+                authScene.traverse((child) => {
+                    if (child.isMesh) {
+                        const name = (child.name || '').toLowerCase();
+                        const isHeadPart = headMeshNames.some(k => name.includes(k));
+                        const isEdge = name.includes('edge');
+
+                        if (isHeadPart && !isEdge) {
+                            const clone = child.clone();
+                            if (clone.material) {
+                                clone.material.side = THREE.DoubleSide;
+                                if (clone.material.map) clone.material.map.encoding = THREE.sRGBEncoding;
+                            }
+                            headGroup.add(clone);
+                        }
+                    }
+                });
+
+                // Compute bounding box of extracted head
+                const box = new THREE.Box3().setFromObject(headGroup);
+                const center = new THREE.Vector3();
+                box.getCenter(center);
+                const size = new THREE.Vector3();
+                box.getSize(size);
+                console.log("Extracted Authentic Head Box:", box, "Center:", center, "Size:", size);
+
+                // Authentic model total height is ~21.0 units; head sits at Y ~ 17.2 to 21.0
+                // Rigged model height is ~1.54m; head bone is around Y ~ 1.396m
+                // Scale factor: head size needs to match anime proportion (~0.28m height)
+                const targetHeadHeight = 0.28;
+                const headScale = targetHeadHeight / size.y;
+
+                headGroup.position.set(-center.x * headScale, -17.4 * headScale, -center.z * headScale + 0.02);
+                headGroup.scale.setScalar(headScale);
+
+                // Mount onto headBone or head anchor
+                if (headBone) {
+                    headBone.add(headGroup);
+                    info.innerText = "Skeletal Rem Ready! Head mounted to J_Bip_C_Head.";
+                } else {
+                    scene.add(headGroup);
+                    info.innerText = "Head bone not found, added to scene.";
+                }
+
+                authenticHead = headGroup;
+            });
+        });
+
+        // 3. Procedural Walk & Idle Dynamics
+        let walkPhase = 0;
+        let isWalking = true;
+        let walkWeight = 1.0; // 0 = idle, 1 = walk
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const time = performance.now() * 0.001;
+
+            if (bones['J_Bip_L_UpperLeg'] && bones['J_Bip_R_UpperLeg']) {
+                if (isWalking) {
+                    walkPhase += 0.08;
+                    walkWeight = THREE.MathUtils.lerp(walkWeight, 1.0, 0.05);
+                } else {
+                    walkWeight = THREE.MathUtils.lerp(walkWeight, 0.0, 0.05);
+                }
+
+                const sinWalk = Math.sin(walkPhase);
+                const cosWalk = Math.cos(walkPhase);
+
+                // Leg swing (alternating forward/backward)
+                const legSwing = 0.45 * walkWeight;
+                bones['J_Bip_L_UpperLeg'].rotation.x = sinWalk * legSwing;
+                bones['J_Bip_R_UpperLeg'].rotation.x = -sinWalk * legSwing;
+
+                // Knee bending (only bends backwards when leg is moving backward)
+                const kneeBend = 0.55 * walkWeight;
+                bones['J_Bip_L_LowerLeg'].rotation.x = Math.max(0, -cosWalk * kneeBend);
+                bones['J_Bip_R_LowerLeg'].rotation.x = Math.max(0, cosWalk * kneeBend);
+
+                // Arm swing (alternates opposite to legs)
+                if (bones['J_Bip_L_UpperArm'] && bones['J_Bip_R_UpperArm']) {
+                    const armSwing = 0.25 * walkWeight;
+                    bones['J_Bip_L_UpperArm'].rotation.x = -sinWalk * armSwing;
+                    bones['J_Bip_R_UpperArm'].rotation.x = sinWalk * armSwing;
+                }
+
+                // Torso & Hips subtle twist
+                if (bones['J_Bip_C_Spine']) {
+                    bones['J_Bip_C_Spine'].rotation.y = sinWalk * 0.06 * walkWeight;
+                    // Idle breathing
+                    bones['J_Bip_C_Spine'].rotation.x = Math.sin(time * 2.0) * 0.02 * (1.0 - walkWeight * 0.5);
+                }
+
+                // Head gentle counter-stabilization
+                if (headBone) {
+                    headBone.rotation.y = -sinWalk * 0.03 * walkWeight;
+                    headBone.rotation.z = Math.sin(time * 1.5) * 0.015;
+                }
+            }
+
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        animate();
+    </script>
+</body>
+</html>

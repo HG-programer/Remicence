@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Rem Skeletal Articulation Engine Test</title>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+    <style>
+        body { margin: 0; background: #38bdf8; overflow: hidden; font-family: sans-serif; }
+        #ui {
+            position: absolute; top: 15px; left: 15px; background: rgba(15,23,42,0.85);
+            color: white; padding: 15px 20px; border-radius: 10px; font-size: 14px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1);
+        }
+        .btn {
+            background: #0284c7; color: white; border: none; padding: 6px 14px;
+            border-radius: 6px; cursor: pointer; margin-right: 8px; font-weight: bold;
+        }
+        .btn:hover { background: #0369a1; }
+    </style>
+</head>
+<body>
+    <div id="ui">
+        <div style="font-size: 16px; font-weight: bold; margin-bottom: 8px;">🌸 Rem Skeletal Rigging Test</div>
+        <div id="status" style="color: #38bdf8; margin-bottom: 10px;">Loading Rem Authentic Model...</div>
+        <div>
+            <button class="btn" onclick="setMode('walk')">Walk Stride</button>
+            <button class="btn" onclick="setMode('idle')">Idle Breathe</button>
+            <button class="btn" onclick="setMode('stride_pose')">Push-Off Pose</button>
+        </div>
+    </div>
+
+    <script>
+        const statusEl = document.getElementById('status');
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+        camera.position.set(0, 1.1, 2.8);
+        camera.lookAt(0, 0.85, 0);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.outputEncoding = THREE.sRGBEncoding;
+        document.body.appendChild(renderer.domElement);
+
+        scene.add(new THREE.AmbientLight(0xffffff, 0.9));
+        const sun = new THREE.DirectionalLight(0xffffff, 1.1);
+        sun.position.set(5, 12, 6);
+        scene.add(sun);
+
+        const grid = new THREE.GridHelper(10, 20, 0x0284c7, 0x64748b);
+        grid.position.y = 0;
+        scene.add(grid);
+
+        // Skeletal Structure
+        let rootBone, hipsBone, leftThigh, leftShin, leftFoot, rightThigh, rightShin, rightFoot;
+        let spineBone, chestBone, neckBone, headBone, leftShoulder, rightShoulder;
+        let remModelGroup = null;
+        let mouthClosed = null, mouthOpen = null;
+
+        let animMode = 'walk'; // 'walk', 'idle', 'stride_pose'
+        let walkWeight = 1.0;
+        let targetWalkWeight = 1.0;
+
+        function setMode(m) {
+            animMode = m;
+            if (m === 'walk') targetWalkWeight = 1.0;
+            if (m === 'idle') targetWalkWeight = 0.0;
+            if (m === 'stride_pose') targetWalkWeight = 1.0;
+            statusEl.innerText = "Mode: " + m.toUpperCase();
+        }
+
+        const loader = new THREE.GLTFLoader();
+        loader.load('models/Rem.glb', (gltf) => {
+            const rawModel = gltf.scene;
+            remModelGroup = new THREE.Group();
+            scene.add(remModelGroup);
+
+            // =================================================================
+            // 1. BUILD ARTICULATED HUMANOID SKELETON
+            // =================================================================
+            rootBone = new THREE.Bone();
+            rootBone.name = "Root";
+            rootBone.position.set(0, 0, 0);
+
+            hipsBone = new THREE.Bone();
+            hipsBone.name = "Hips";
+            hipsBone.position.set(0, 8.8, 0);
+            rootBone.add(hipsBone);
+
+            // Left Leg Chain
+            leftThigh = new THREE.Bone();
+            leftThigh.name = "LeftThigh";
+            leftThigh.position.set(0.65, -0.5, 0);
+            hipsBone.add(leftThigh);
+
+            leftShin = new THREE.Bone();
+            leftShin.name = "LeftShin";
+            leftShin.position.set(0, -4.2, 0);
+            leftThigh.add(leftShin);
+
+            leftFoot = new THREE.Bone();
+            leftFoot.name = "LeftFoot";
+            leftFoot.position.set(0, -3.8, 0.4);
+            leftShin.add(leftFoot);
+
+            // Right Leg Chain
+            rightThigh = new THREE.Bone();
+            rightThigh.name = "RightThigh";
+            rightThigh.position.set(-0.65, -0.5, 0);
+            hipsBone.add(rightThigh);
+
+            rightShin = new THREE.Bone();
+            rightShin.name = "RightShin";
+            rightShin.position.set(0, -4.2, 0);
+            rightThigh.add(rightShin);
+
+            rightFoot = new THREE.Bone();
+            rightFoot.name = "RightFoot";
+            rightFoot.position.set(0, -3.8, 0.4);
+            rightShin.add(rightFoot);
+
+            // Spine & Torso Chain
+            spineBone = new THREE.Bone();
+            spineBone.name = "Spine";
+            spineBone.position.set(0, 2.5, 0);
+            hipsBone.add(spineBone);
+
+            chestBone = new THREE.Bone();
+            chestBone.name = "Chest";
+            chestBone.position.set(0, 3.2, 0);
+            spineBone.add(chestBone);
+
+            neckBone = new THREE.Bone();
+            neckBone.name = "Neck";
+            neckBone.position.set(0, 2.2, 0);
+            chestBone.add(neckBone);
+
+            headBone = new THREE.Bone();
+            headBone.name = "Head";
+            headBone.position.set(0, 1.2, 0);
+            neckBone.add(headBone);
+
+            // Arm Shoulders
+            leftShoulder = new THREE.Bone();
+            leftShoulder.name = "LeftShoulder";
+            leftShoulder.position.set(1.8, 1.2, 0);
+            chestBone.add(leftShoulder);
+
+            rightShoulder = new THREE.Bone();
+            rightShoulder.name = "RightShoulder";
+            rightShoulder.position.set(-1.8, 1.2, 0);
+            chestBone.add(rightShoulder);
+
+            const bones = [
+                rootBone, hipsBone,
+                leftThigh, leftShin, leftFoot,
+                rightThigh, rightShin, rightFoot,
+                spineBone, chestBone, neckBone, headBone,
+                leftShoulder, rightShoulder
+            ];
+            const skeleton = new THREE.Skeleton(bones);
+
+            // =================================================================
+            // 2. BIND MESHES: SKINNING LEGS + MOUNTING AUTHENTIC HEAD & DRESS
+            // =================================================================
+            rawModel.traverse((child) => {
+                if (child.isMesh) {
+                    const name = (child.name || '').toLowerCase();
+                    if (name.includes('edge')) return; // Inverted hull outline
+
+                    if (name.includes('mouth1')) {
+                        child.visible = true;
+                        mouthClosed = child;
+                    } else if (name.includes('mouth2')) {
+                        child.visible = false;
+                        mouthOpen = child;
+                    } else if (name.includes('mouth3')) {
+                        child.visible = false;
+                    }
+
+                    // Legs: Socks1 (mesh 7) and Socks2 (mesh 8)
+                    const isLegs = name.includes('socks1') || name.includes('socks2');
+                    if (isLegs) {
+                        const geo = child.geometry.clone();
+                        const pos = geo.attributes.position;
+                        const skinIndices = [];
+                        const skinWeights = [];
+
+                        // Bone indices:
+                        // 0: rootBone
+                        // 1: hipsBone
+                        // 2: leftThigh, 3: leftShin, 4: leftFoot
+                        // 5: rightThigh, 6: rightShin, 7: rightFoot
+                        for (let i = 0; i < pos.count; i++) {
+                            const vx = pos.getX(i);
+                            const vy = pos.getY(i);
+
+                            if (vx >= 0) {
+                                // Left leg
+                                if (vy > 4.2) {
+                                    skinIndices.push(2, 1, 3, 0); // LeftThigh + Hips blend
+                                    skinWeights.push(0.85, 0.10, 0.05, 0);
+                                } else if (vy > 1.0) {
+                                    skinIndices.push(3, 2, 4, 0); // LeftShin
+                                    skinWeights.push(0.85, 0.10, 0.05, 0);
+                                } else {
+                                    skinIndices.push(4, 3, 0, 0); // LeftFoot
+                                    skinWeights.push(0.90, 0.10, 0, 0);
+                                }
+                            } else {
+                                // Right leg
+                                if (vy > 4.2) {
+                                    skinIndices.push(5, 1, 6, 0); // RightThigh + Hips blend
+                                    skinWeights.push(0.85, 0.10, 0.05, 0);
+                                } else if (vy > 1.0) {
+                                    skinIndices.push(6, 5, 7, 0); // RightShin
+                                    skinWeights.push(0.85, 0.10, 0.05, 0);
+                                } else {
+                                    skinIndices.push(7, 6, 0, 0); // RightFoot
+                                    skinWeights.push(0.90, 0.10, 0, 0);
+                                }
+                            }
+                        }
+
+                        geo.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(skinIndices, 4));
+                        geo.setAttribute('skinWeight', new THREE.Float32BufferAttribute(skinWeights, 4));
+
+                        const mat = child.material.clone();
+                        mat.skinning = true;
+                        mat.side = THREE.DoubleSide;
+
+                        const skinnedLegs = new THREE.SkinnedMesh(geo, mat);
+                        skinnedLegs.add(rootBone);
+                        skinnedLegs.bind(skeleton);
+                        remModelGroup.add(skinnedLegs);
+                    } else {
+                        // Keep 100% authentic maid dress, apron, corset ribbons, cuffs, face, hair
+                        child.material.side = THREE.DoubleSide;
+                        remModelGroup.add(child.clone());
+                    }
+                }
+            });
+
+            // Scale to canonical Rem height (1.54m)
+            const scale = 1.54 / 21.05;
+            remModelGroup.scale.setScalar(scale);
+
+            // Ground Rem's feet at y = 0
+            remModelGroup.position.y = 0;
+
+            statusEl.innerText = "🌸 Rem Rigged & Skeletal Stride Engine Active!";
+            console.log("REM SKELETAL RIG READY");
+        });
+
+        // =====================================================================
+        // 3. ZERO-JITTER CONTINUOUS STRIDE & IDLE KINEMATICS ENGINE
+        // =====================================================================
+        let walkPhase = 0;
+        let lastTime = performance.now() * 0.001;
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const now = performance.now() * 0.001;
+            const delta = Math.min(now - lastTime, 0.1);
+            lastTime = now;
+
+            // Smoothly lerp walkWeight for zero-jitter transition between Idle and Walk
+            walkWeight = THREE.MathUtils.lerp(walkWeight, targetWalkWeight, delta * 5.0);
+
+            if (leftThigh && rightThigh) {
+                if (animMode === 'stride_pose') {
+                    // Frozen stride pose for photographic inspection
+                    leftThigh.rotation.x = 0.50;
+                    leftShin.rotation.x = -0.15;
+                    leftFoot.rotation.x = -0.15;
+
+                    rightThigh.rotation.x = -0.50;
+                    rightShin.rotation.x = 0.60;
+                    rightFoot.rotation.x = 0.25;
+
+                    hipsBone.position.y = 8.8 + 0.15;
+                    hipsBone.rotation.z = -0.02;
+
+                    chestBone.rotation.x = 0.03;
+                    headBone.rotation.x = -0.02;
+                } else {
+                    // Continuous Dynamic Stride & Idle
+                    const strideFrequency = 4.2;
+                    walkPhase += delta * strideFrequency * (0.2 + 0.8 * walkWeight);
+
+                    const sin = Math.sin(walkPhase);
+                    const cos = Math.cos(walkPhase);
+
+                    // Alternating Thigh Strides
+                    leftThigh.rotation.x = sin * 0.48 * walkWeight;
+                    rightThigh.rotation.x = -sin * 0.48 * walkWeight;
+
+                    // Realistic Knee Flexion on Back Push-Off
+                    // Human/anime knees only flex backwards (positive X rotation in this bone setup)
+                    leftShin.rotation.x = Math.max(0, -cos * 0.55) * walkWeight;
+                    rightShin.rotation.x = Math.max(0, cos * 0.55) * walkWeight;
+
+                    // Foot Landing & Toe Articulation
+                    leftFoot.rotation.x = -sin * 0.20 * walkWeight;
+                    rightFoot.rotation.x = sin * 0.20 * walkWeight;
+
+                    // Natural Pelvic Sway and Step Bobbing
+                    hipsBone.position.y = 8.8 + Math.abs(sin) * 0.20 * walkWeight + Math.sin(now * 2.2) * 0.04 * (1.0 - walkWeight);
+                    hipsBone.rotation.z = sin * 0.025 * walkWeight;
+                    hipsBone.rotation.y = sin * 0.035 * walkWeight;
+
+                    // Chest Expansion Breathing in Idle & Counter-sway in Walk
+                    chestBone.rotation.x = (Math.sin(now * 2.2) * 0.025 * (1.0 - walkWeight)) + (0.02 * walkWeight);
+                    chestBone.rotation.y = -sin * 0.025 * walkWeight;
+
+                    // Head Natural Micro-Movement & Level Gaze
+                    headBone.rotation.x = Math.sin(now * 1.2) * 0.015;
+                    headBone.rotation.z = Math.cos(now * 0.9) * 0.012;
+                    headBone.rotation.y = -hipsBone.rotation.y * 0.5; // Compensate hip swivel to keep gaze forward
+                }
+            }
+
+            renderer.render(scene, camera);
+        }
+        animate();
+    </script>
+</body>
+</html>

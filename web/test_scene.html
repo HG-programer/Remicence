@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Lugnica Terrace - Environment Upgrade Test</title>
+    <script src="libs/three.min.js"></script>
+    <script src="libs/OrbitControls.js"></script>
+    <script src="libs/GLTFLoader.js"></script>
+    <style>
+        body { margin: 0; overflow: hidden; background: #000; }
+        #canvas-container { width: 100vw; height: 100vh; }
+    </style>
+</head>
+<body>
+    <div id="canvas-container"></div>
+    <script>
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
+        const clock = new THREE.Clock();
+
+        const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 1.42, 2.3);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.05;
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        renderer.outputEncoding = THREE.sRGBEncoding;
+        container.appendChild(renderer.domElement);
+
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.target.set(0, 1.25, 0);
+        controls.maxPolarAngle = Math.PI / 2 + 0.02;
+
+        const texLoader = new THREE.TextureLoader();
+
+        // 1. TEXTURES
+        const royalPavingTex = texLoader.load('textures/royal_paving.jpg');
+        royalPavingTex.encoding = THREE.sRGBEncoding;
+
+        const royalPavingNorm = texLoader.load('textures/royal_paving_normal.jpg');
+
+        const marbleTex = texLoader.load('textures/marble_clean.jpg');
+        marbleTex.wrapS = THREE.RepeatWrapping;
+        marbleTex.wrapT = THREE.RepeatWrapping;
+        marbleTex.encoding = THREE.sRGBEncoding;
+
+        const marbleNorm = texLoader.load('textures/marble_clean_normal.jpg');
+        marbleNorm.wrapS = THREE.RepeatWrapping;
+        marbleNorm.wrapT = THREE.RepeatWrapping;
+
+        const ivyTex = texLoader.load('textures/ivy_leaves.png');
+        ivyTex.encoding = THREE.sRGBEncoding;
+
+        const petalTex = texLoader.load('textures/sakura_petal.png');
+        petalTex.encoding = THREE.sRGBEncoding;
+
+        const vistaTex = texLoader.load('textures/lugnica_sky_panorama.jpg');
+        vistaTex.encoding = THREE.sRGBEncoding;
+
+        // 2. ATMOSPHERIC ANIME SKY & PANORAMA
+        const skyGeo = new THREE.SphereGeometry(180, 64, 32);
+        const skyMat = new THREE.MeshBasicMaterial({
+            map: vistaTex,
+            side: THREE.BackSide,
+            fog: false
+        });
+        const skyDome = new THREE.Mesh(skyGeo, skyMat);
+        skyDome.position.y = 28.0; // Elevates the valley, royal castle, and river right above the balustrade!
+        skyDome.rotation.y = Math.PI * 0.96;
+        scene.add(skyDome);
+
+        // Radiant Sun Disc & Volumetric Light Shafts
+        const sunDisc = new THREE.Mesh(
+            new THREE.CircleGeometry(16, 32),
+            new THREE.MeshBasicMaterial({ color: 0xfffef0, transparent: true, opacity: 0.95, side: THREE.DoubleSide })
+        );
+        sunDisc.position.set(-42, 70, -85);
+        sunDisc.lookAt(0, 0, 0);
+        scene.add(sunDisc);
+
+        // Soft volumetric god rays
+        const godRayGeo = new THREE.ConeGeometry(14, 95, 16, 1, true);
+        const godRayMat = new THREE.MeshBasicMaterial({
+            color: 0xfef9c3,
+            transparent: true,
+            opacity: 0.15,
+            side: THREE.DoubleSide,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false
+        });
+        const godRays = new THREE.Mesh(godRayGeo, godRayMat);
+        godRays.position.set(-18, 38, -20);
+        godRays.rotation.x = Math.PI * 0.62;
+        godRays.rotation.z = -0.32;
+        scene.add(godRays);
+
+        // 3. CINEMATIC ANIME LIGHTING
+        const hemiLight = new THREE.HemisphereLight(0xbbe4ff, 0xebdcc7, 0.85);
+        scene.add(hemiLight);
+
+        const sunLight = new THREE.DirectionalLight(0xfffaea, 1.35);
+        sunLight.position.set(-14, 30, 18);
+        sunLight.castShadow = true;
+        sunLight.shadow.mapSize.set(2048, 2048);
+        sunLight.shadow.camera.near = 0.5;
+        sunLight.shadow.camera.far = 60;
+        sunLight.shadow.camera.left = -6;
+        sunLight.shadow.camera.right = 6;
+        sunLight.shadow.camera.top = 6;
+        sunLight.shadow.camera.bottom = -6;
+        sunLight.shadow.bias = -0.0003;
+        scene.add(sunLight);
+
+        const fillLight = new THREE.DirectionalLight(0xe0f2fe, 0.55);
+        fillLight.position.set(12, 16, 12);
+        scene.add(fillLight);
+
+        // Warm rim light for anime character hair glow
+        const rimLight = new THREE.DirectionalLight(0xfef08a, 0.65);
+        rimLight.position.set(-5, 16, -14);
+        scene.add(rimLight);
+
+        // 4. TERRACE FLOOR (ROYAL MANDALA SANDSTONE PAVING)
+        const floorMat = new THREE.MeshStandardMaterial({
+            map: royalPavingTex,
+            normalMap: royalPavingNorm,
+            normalScale: new THREE.Vector2(0.9, 0.9),
+            roughness: 0.60,
+            metalness: 0.03
+        });
+        const floorMesh = new THREE.Mesh(new THREE.CylinderGeometry(8.8, 8.8, 0.45, 64), floorMat);
+        floorMesh.position.y = -0.225;
+        floorMesh.receiveShadow = true;
+        scene.add(floorMesh);
+
+        // Classical warm marble material for balustrades, plinths, and columns
+        const marbleMat = new THREE.MeshStandardMaterial({
+            map: marbleTex,
+            normalMap: marbleNorm,
+            normalScale: new THREE.Vector2(0.4, 0.4),
+            roughness: 0.52,
+            metalness: 0.02,
+            color: 0xf6f2ec
+        });
+
+        // Molded perimeter kerb ring
+        const kerb = new THREE.Mesh(new THREE.TorusGeometry(8.75, 0.14, 16, 64), marbleMat);
+        kerb.rotation.x = Math.PI / 2;
+        kerb.position.y = 0.02;
+        kerb.receiveShadow = true;
+        scene.add(kerb);
+
+        // 5. CLASSICAL SCULPTED BALUSTRADE (RENAISSANCE / ROYAL GRECO-ROMAN)
+        function createBalusterGeometry() {
+            const points = [];
+            points.push(new THREE.Vector2(0.08, 0.0));
+            points.push(new THREE.Vector2(0.08, 0.10));
+            points.push(new THREE.Vector2(0.105, 0.14));
+            points.push(new THREE.Vector2(0.12, 0.24));
+            points.push(new THREE.Vector2(0.11, 0.36));
+            points.push(new THREE.Vector2(0.065, 0.50));
+            points.push(new THREE.Vector2(0.085, 0.60));
+            points.push(new THREE.Vector2(0.075, 0.64));
+            points.push(new THREE.Vector2(0.08, 0.72));
+            return new THREE.LatheGeometry(points, 16);
+        }
+
+        const balusterGeo = createBalusterGeometry();
+        const balustradeRadius = 8.2;
+        const totalSegments = 42;
+        const pierInterval = 7;
+
+        for (let i = 0; i <= totalSegments; i++) {
+            const theta = (i / totalSegments) * Math.PI * 1.35 - Math.PI * 0.675;
+            const bx = Math.sin(theta) * balustradeRadius;
+            const bz = -Math.cos(theta) * balustradeRadius;
+
+            if (i % pierInterval === 0) {
+                // Classical Pier Pedestal
+                const pierGroup = new THREE.Group();
+                pierGroup.position.set(bx, 0, bz);
+                pierGroup.rotation.y = theta;
+
+                const pBase = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.25, 0.55), marbleMat);
+                pBase.position.y = 0.125;
+                pBase.castShadow = true;
+                pBase.receiveShadow = true;
+                pierGroup.add(pBase);
+
+                const pBody = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.65, 0.44), marbleMat);
+                pBody.position.y = 0.575;
+                pBody.castShadow = true;
+                pBody.receiveShadow = true;
+                pierGroup.add(pBody);
+
+                const pCap = new THREE.Mesh(new THREE.BoxGeometry(0.56, 0.14, 0.56), marbleMat);
+                pCap.position.y = 0.97;
+                pCap.castShadow = true;
+                pCap.receiveShadow = true;
+                pierGroup.add(pCap);
+
+                // Classical Stone Urn
+                const urnPoints = [];
+                urnPoints.push(new THREE.Vector2(0.08, 0.0));
+                urnPoints.push(new THREE.Vector2(0.12, 0.06));
+                urnPoints.push(new THREE.Vector2(0.16, 0.20));
+                urnPoints.push(new THREE.Vector2(0.12, 0.32));
+                urnPoints.push(new THREE.Vector2(0.14, 0.36));
+                const urn = new THREE.Mesh(new THREE.LatheGeometry(urnPoints, 16), marbleMat);
+                urn.position.y = 1.04;
+                urn.castShadow = true;
+                pierGroup.add(urn);
+
+                // Lush Foliage & Blooming Flowers in Urn
+                const foliage = new THREE.Mesh(
+                    new THREE.DodecahedronGeometry(0.18, 1),
+                    new THREE.MeshStandardMaterial({ color: 0x3d7a46, roughness: 0.85 })
+                );
+                foliage.position.y = 1.34;
+                foliage.castShadow = true;
+                pierGroup.add(foliage);
+
+                const blossoms = new THREE.Mesh(
+                    new THREE.DodecahedronGeometry(0.13, 1),
+                    new THREE.MeshStandardMaterial({ color: (i % 2 === 0) ? 0x93c5fd : 0xd8b4fe, roughness: 0.75 })
+                );
+                blossoms.position.set(0, 1.42, 0.02);
+                blossoms.castShadow = true;
+                pierGroup.add(blossoms);
+
+                scene.add(pierGroup);
+            } else {
+                // Turned Baluster Spindle
+                const baluster = new THREE.Mesh(balusterGeo, marbleMat);
+                baluster.position.set(bx, 0.15, bz);
+                baluster.rotation.y = theta;
+                baluster.castShadow = true;
+                baluster.receiveShadow = true;
+                scene.add(baluster);
+            }
+        }
+
+        // Continuous Lower Plinth Rail & Molded Handrail
+        const railSegments = 60;
+        const railCurveAngle = Math.PI * 1.35;
+        const railStart = -Math.PI * 0.675;
+
+        for (let i = 0; i < railSegments; i++) {
+            const t1 = railStart + (i / railSegments) * railCurveAngle;
+            const t2 = railStart + ((i + 1) / railSegments) * railCurveAngle;
+            const midT = (t1 + t2) / 2;
+            const segLen = (railCurveAngle / railSegments) * balustradeRadius;
+
+            const rx = Math.sin(midT) * balustradeRadius;
+            const rz = -Math.cos(midT) * balustradeRadius;
+
+            const lowerRail = new THREE.Mesh(new THREE.BoxGeometry(segLen * 1.02, 0.15, 0.34), marbleMat);
+            lowerRail.position.set(rx, 0.075, rz);
+            lowerRail.rotation.y = midT;
+            lowerRail.castShadow = true;
+            lowerRail.receiveShadow = true;
+            scene.add(lowerRail);
+
+            const upperRail = new THREE.Mesh(new THREE.BoxGeometry(segLen * 1.02, 0.12, 0.36), marbleMat);
+            upperRail.position.set(rx, 0.92, rz);
+            upperRail.rotation.y = midT;
+            upperRail.castShadow = true;
+            upperRail.receiveShadow = true;
+            scene.add(upperRail);
+
+            const handrailCap = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, segLen * 1.02, 12), marbleMat);
+            handrailCap.position.set(rx, 0.98, rz);
+            handrailCap.rotation.z = Math.PI / 2;
+            handrailCap.rotation.y = midT + Math.PI / 2;
+            handrailCap.castShadow = true;
+            scene.add(handrailCap);
+        }
+
+        // 6. HIGH-END 3D FLUTED CORINTHIAN COLUMNS & RUINS
+        function buildFlutedPillar(x, y, z, height, isRuined) {
+            const group = new THREE.Group();
+            group.position.set(x, y, z);
+
+            const baseBox = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.38, 1.6), marbleMat);
+            baseBox.position.y = 0.19;
+            baseBox.castShadow = true;
+            baseBox.receiveShadow = true;
+            group.add(baseBox);
+
+            const torus1 = new THREE.Mesh(new THREE.TorusGeometry(0.68, 0.08, 16, 32), marbleMat);
+            torus1.rotation.x = Math.PI / 2;
+            torus1.position.y = 0.42;
+            torus1.castShadow = true;
+            group.add(torus1);
+
+            const torus2 = new THREE.Mesh(new THREE.TorusGeometry(0.60, 0.07, 16, 32), marbleMat);
+            torus2.rotation.x = Math.PI / 2;
+            torus2.position.y = 0.54;
+            torus2.castShadow = true;
+            group.add(torus2);
+
+            const shaftHeight = isRuined ? height - 0.9 : height - 1.2;
+            const shaftCore = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.50, 0.54, shaftHeight, 32),
+                marbleMat
+            );
+            shaftCore.position.y = 0.6 + shaftHeight / 2;
+            shaftCore.castShadow = true;
+            shaftCore.receiveShadow = true;
+            group.add(shaftCore);
+
+            // 20 vertical fluting columns for deep authentic 3D shadows
+            const numFlutes = 20;
+            for (let f = 0; f < numFlutes; f++) {
+                const angle = (f / numFlutes) * Math.PI * 2;
+                const fx = Math.sin(angle) * 0.525;
+                const fz = Math.cos(angle) * 0.525;
+                const flute = new THREE.Mesh(
+                    new THREE.CylinderGeometry(0.045, 0.048, shaftHeight, 8),
+                    marbleMat
+                );
+                flute.position.set(fx, 0.6 + shaftHeight / 2, fz);
+                flute.castShadow = true;
+                group.add(flute);
+            }
+
+            if (!isRuined) {
+                const capY = 0.6 + shaftHeight;
+                const capital = new THREE.Mesh(new THREE.CylinderGeometry(0.72, 0.54, 0.55, 24), marbleMat);
+                capital.position.y = capY + 0.275;
+                capital.castShadow = true;
+                group.add(capital);
+
+                const abacus = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.24, 1.4), marbleMat);
+                abacus.position.y = capY + 0.67;
+                abacus.castShadow = true;
+                group.add(abacus);
+            } else {
+                // Weathered Ruined Top with fractured slabs
+                const breakY = 0.6 + shaftHeight;
+                const fracture1 = new THREE.Mesh(new THREE.DodecahedronGeometry(0.48, 1), marbleMat);
+                fracture1.position.set(0.08, breakY + 0.15, -0.05);
+                fracture1.scale.set(1.2, 0.6, 1.1);
+                fracture1.rotation.set(0.2, 0.4, -0.15);
+                fracture1.castShadow = true;
+                group.add(fracture1);
+
+                // Curved Climbing Ivy Vines hugging the column surface organically
+                const ivyMat = new THREE.MeshStandardMaterial({
+                    map: ivyTex,
+                    transparent: true,
+                    alphaTest: 0.25,
+                    side: THREE.DoubleSide,
+                    roughness: 0.65
+                });
+
+                // Cylindrical ivy sleeve wrapping gracefully around shaft
+                const ivySleeveGeo = new THREE.CylinderGeometry(0.58, 0.61, 2.6, 24, 1, true);
+                const ivySleeve = new THREE.Mesh(ivySleeveGeo, ivyMat);
+                ivySleeve.position.y = 1.9;
+                ivySleeve.rotation.y = 0.8;
+                group.add(ivySleeve);
+
+                const ivySleeve2 = new THREE.CylinderGeometry(0.55, 0.58, 1.8, 24, 1, true);
+                const ivySleeveMesh2 = new THREE.Mesh(ivySleeve2, ivyMat);
+                ivySleeveMesh2.position.y = 2.8;
+                ivySleeveMesh2.rotation.y = 2.4;
+                group.add(ivySleeveMesh2);
+
+                // Tumbled Ruin Stone Blocks at Base
+                const fallenBlock1 = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.32, 0.45), marbleMat);
+                fallenBlock1.position.set(0.9, 0.16, 0.4);
+                fallenBlock1.rotation.set(0.1, 0.6, 0.05);
+                fallenBlock1.castShadow = true;
+                fallenBlock1.receiveShadow = true;
+                group.add(fallenBlock1);
+
+                const fallenBlock2 = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.28, 0.38), marbleMat);
+                fallenBlock2.position.set(0.65, 0.14, 0.9);
+                fallenBlock2.rotation.set(-0.1, 0.3, 0.12);
+                fallenBlock2.castShadow = true;
+                fallenBlock2.receiveShadow = true;
+                group.add(fallenBlock2);
+            }
+
+            scene.add(group);
+        }
+
+        buildFlutedPillar(-4.6, 0, -2.8, 6.2, false); // Intact tall pillar on left
+        buildFlutedPillar(3.8, 0, -2.4, 4.2, true);   // Subaru's iconic ruined pillar with ivy!
+        buildFlutedPillar(5.2, 0, -0.6, 2.2, true);   // Weathered low ruin drum
+
+        // 7. FLOATING ANIME SAKURA PETALS & LUMINOUS MANA
+        const sakuraPetals = [];
+        const petalGeo = new THREE.PlaneGeometry(0.09, 0.13);
+        const petalMat = new THREE.MeshBasicMaterial({
+            map: petalTex,
+            transparent: true,
+            alphaTest: 0.1,
+            side: THREE.DoubleSide
+        });
+
+        for (let i = 0; i < 60; i++) {
+            const petal = new THREE.Mesh(petalGeo, petalMat);
+            petal.position.set(
+                (Math.random() - 0.5) * 12,
+                0.2 + Math.random() * 4.5,
+                (Math.random() - 0.5) * 12
+            );
+            petal.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
+            petal.speedY = 0.007 + Math.random() * 0.012;
+            petal.speedX = (Math.random() - 0.5) * 0.007;
+            petal.rotSpeed = (Math.random() - 0.5) * 0.035;
+            sakuraPetals.push(petal);
+            scene.add(petal);
+        }
+
+        // Luminous mana sparkles
+        const manaGeo = new THREE.BufferGeometry();
+        const manaCount = 120;
+        const manaPositions = new Float32Array(manaCount * 3);
+        for (let i = 0; i < manaCount * 3; i += 3) {
+            manaPositions[i] = (Math.random() - 0.5) * 14;
+            manaPositions[i + 1] = 0.3 + Math.random() * 4.0;
+            manaPositions[i + 2] = (Math.random() - 0.5) * 14;
+        }
+        manaGeo.setAttribute('position', new THREE.BufferAttribute(manaPositions, 3));
+        const manaMat = new THREE.PointsMaterial({
+            color: 0x93e5fd,
+            size: 0.045,
+            transparent: true,
+            opacity: 0.85,
+            blending: THREE.AdditiveBlending
+        });
+        const manaParticles = new THREE.Points(manaGeo, manaMat);
+        scene.add(manaParticles);
+
+        // 8. LOAD REM
+        new THREE.GLTFLoader().load('models/Rem.glb', (gltf) => {
+            const rem = gltf.scene;
+            const box = new THREE.Box3().setFromObject(rem);
+            const size = new THREE.Vector3();
+            box.getSize(size);
+            const scale = 1.54 / (size.y || 21.05);
+            rem.scale.multiplyScalar(scale);
+
+            const newBox = new THREE.Box3().setFromObject(rem);
+            rem.position.y = -newBox.min.y;
+            rem.position.x = -(newBox.min.x + newBox.max.x) / 2;
+            rem.position.z = -(newBox.min.z + newBox.max.z) / 2;
+
+            rem.traverse(c => {
+                if (c.isMesh) {
+                    c.castShadow = true;
+                    c.receiveShadow = true;
+                    if (c.name.toLowerCase().includes('edge')) c.visible = false;
+                }
+            });
+
+            scene.add(rem);
+        });
+
+        // 9. ANIMATION LOOP
+        function animate() {
+            requestAnimationFrame(animate);
+            const time = clock.getElapsedTime();
+
+            sakuraPetals.forEach(p => {
+                p.position.y -= p.speedY;
+                p.position.x += Math.sin(time + p.position.z) * 0.005 + p.speedX;
+                p.position.z += 0.004;
+                p.rotation.x += p.rotSpeed;
+                p.rotation.y += p.rotSpeed * 0.8;
+                p.rotation.z += p.rotSpeed * 1.2;
+
+                if (p.position.y < 0.05) {
+                    p.position.y = 4.0 + Math.random() * 1.5;
+                    p.position.x = (Math.random() - 0.5) * 12;
+                    p.position.z = -5 + (Math.random() - 0.5) * 8;
+                }
+            });
+
+            if (manaParticles) {
+                manaParticles.rotation.y = time * 0.03;
+            }
+
+            if (godRays) {
+                godRays.material.opacity = 0.14 + Math.sin(time * 0.8) * 0.04;
+            }
+
+            controls.update();
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+</body>
+</html>

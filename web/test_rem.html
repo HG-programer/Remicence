@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Rem Test Preview</title>
+    <style>
+        body { margin: 0; background: #222; overflow: hidden; }
+        canvas { width: 100vw; height: 100vh; display: block; }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+</head>
+<body>
+    <script>
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0xddeeff);
+
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+        camera.position.set(0, 1.25, 2.2);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.outputEncoding = THREE.sRGBEncoding;
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.1;
+        document.body.appendChild(renderer.domElement);
+
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.target.set(0, 1.1, 0);
+        controls.update();
+
+        // Lighting
+        const amb = new THREE.AmbientLight(0xffffff, 0.9);
+        scene.add(amb);
+
+        const sun = new THREE.DirectionalLight(0xfff6ea, 1.4);
+        sun.position.set(2, 4, 3);
+        scene.add(sun);
+
+        const fill = new THREE.DirectionalLight(0xccddff, 0.6);
+        fill.position.set(-2, 2, -2);
+        scene.add(fill);
+
+        // Grid
+        const grid = new THREE.GridHelper(10, 20, 0x888888, 0xcccccc);
+        scene.add(grid);
+
+        const loader = new THREE.GLTFLoader();
+        loader.load('models/Rem_authentic_standalone.glb', (gltf) => {
+            const model = gltf.scene;
+
+            // Log meshes and materials
+            model.traverse((child) => {
+                if (child.isMesh) {
+                    console.log('Mesh:', child.name, 'Material:', child.material ? child.material.name : 'none');
+                    // Fix anime outline / edge mesh:
+                    const isEdge = (child.name || '').toLowerCase().includes('edge') || 
+                                   (child.material && (child.material.name || '').toLowerCase().includes('edge'));
+                    if (isEdge) {
+                        child.visible = false; // Hide black silhouette shell completely
+                    } else if (child.material) {
+                        child.material.side = THREE.DoubleSide;
+                        if (child.material.map) {
+                            child.material.map.encoding = THREE.sRGBEncoding;
+                        }
+                    }
+
+                    // Manage mouth variants: show Mouth1 (neutral), hide Mouth2/Mouth3
+                    const n = (child.name || '').toLowerCase();
+                    if (n.includes('mouth2') || n.includes('mouth3')) {
+                        child.visible = false;
+                    }
+                }
+            });
+
+            // Normalize size and place on grid
+            const box = new THREE.Box3().setFromObject(model);
+            const size = new THREE.Vector3();
+            box.getSize(size);
+            console.log('Model raw size:', size.x, size.y, size.z);
+
+            // Scale to canonical Rem height = 1.54m
+            const targetHeight = 1.54;
+            const currentHeight = size.y;
+            const scaleFactor = targetHeight / currentHeight;
+            model.scale.multiplyScalar(scaleFactor);
+
+            // Recompute box after scale
+            const newBox = new THREE.Box3().setFromObject(model);
+            model.position.y = -newBox.min.y;
+            model.position.x = -(newBox.min.x + newBox.max.x) / 2;
+            model.position.z = -(newBox.min.z + newBox.max.z) / 2;
+
+            scene.add(model);
+            console.log('Model placed at y=0, scaled by', scaleFactor);
+            window.modelLoaded = true;
+        }, undefined, (err) => {
+            console.error('Error loading model:', err);
+        });
+
+        function animate() {
+            requestAnimationFrame(animate);
+            renderer.render(scene, camera);
+        }
+        animate();
+    </script>
+</body>
+</html>

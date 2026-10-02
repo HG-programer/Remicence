@@ -1,0 +1,2922 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#0f172a">
+    <title>🌸 Project Remniscence - From Zero</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" type="image/svg+xml" href="icon.svg">
+    <link rel="apple-touch-icon" href="icon.svg">
+    <!-- Three.js & Loaders -->
+    <script src="libs/three.min.js"></script>
+    <script src="libs/GLTFLoader.js"></script>
+    <script src="libs/OrbitControls.js"></script>
+    <!-- Post-Processing & Anime Bloom Shaders -->
+    <script src="libs/CopyShader.js"></script>
+    <script src="libs/LuminosityHighPassShader.js"></script>
+    <script src="libs/EffectComposer.js"></script>
+    <script src="libs/RenderPass.js"></script>
+    <script src="libs/ShaderPass.js"></script>
+    <script src="libs/UnrealBloomPass.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-touch-callout: none;
+        }
+        html, body {
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+            background: #000;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            color: #f8fafc;
+            touch-action: none;
+            overscroll-behavior: none;
+        }
+        button, .chip, .action-btn, .icon-btn {
+            touch-action: manipulation;
+        }
+        #webgl-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+
+        /* Top Header */
+        #top-header {
+            position: absolute;
+            top: 18px;
+            left: 20px;
+            z-index: 10;
+            background: rgba(15, 23, 42, 0.75);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            padding: 12px 20px;
+            border-radius: 16px;
+            box-shadow: 0 16px 36px rgba(0, 0, 0, 0.35);
+        }
+        #top-header h1 {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: #38bdf8;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        #top-header p {
+            font-size: 0.78rem;
+            color: #94a3b8;
+            margin-top: 2px;
+        }
+
+        /* Rem In-World Speech Subtitle */
+        #speech-bubble {
+            position: absolute;
+            top: 74px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10;
+            background: rgba(15, 23, 42, 0.88);
+            backdrop-filter: blur(18px);
+            border: 1.5px solid rgba(56, 189, 248, 0.5);
+            padding: 18px 30px;
+            border-radius: 22px;
+            max-width: 620px;
+            width: 90%;
+            text-align: center;
+            box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5), 0 0 25px rgba(56, 189, 248, 0.25);
+            transition: opacity 0.3s ease;
+            pointer-events: none;
+        }
+        #speech-status {
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: #38bdf8;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            margin-bottom: 6px;
+        }
+        #speech-text {
+            font-size: 1.25rem;
+            color: #ffffff;
+            line-height: 1.5;
+            font-weight: 600;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.6);
+        }
+
+        /* Bottom Controls */
+        #chat-bar-container {
+            position: absolute;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: min(760px, 94vw);
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        #quick-chips {
+            display: flex;
+            gap: 8px;
+            overflow-x: auto;
+            padding-bottom: 4px;
+            scrollbar-width: none;
+        }
+        #quick-chips::-webkit-scrollbar { display: none; }
+        .chip {
+            background: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(14px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            color: #f1f5f9;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 0.82rem;
+            font-weight: 600;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .chip:hover {
+            background: rgba(56, 189, 248, 0.25);
+            border-color: #38bdf8;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(56, 189, 248, 0.3);
+        }
+
+        #main-input-bar {
+            display: flex;
+            gap: 10px;
+            background: rgba(15, 23, 42, 0.9);
+            backdrop-filter: blur(18px);
+            border: 1px solid rgba(255, 255, 255, 0.16);
+            padding: 8px 12px;
+            border-radius: 32px;
+            box-shadow: 0 16px 36px rgba(0, 0, 0, 0.45);
+        }
+        #chat-input {
+            flex: 1;
+            background: transparent;
+            border: none;
+            outline: none;
+            color: #fff;
+            font-size: 0.95rem;
+            padding-left: 14px;
+        }
+        #chat-input::placeholder { color: #64748b; }
+        .action-btn {
+            background: #0284c7;
+            border: none;
+            color: white;
+            padding: 9px 20px;
+            border-radius: 24px;
+            font-size: 0.88rem;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s;
+        }
+        .action-btn:hover { background: #0369a1; }
+        #voice-btn { background: #334155; }
+        #voice-btn.recording {
+            background: #ef4444;
+            animation: pulse 1s infinite;
+        }
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+            70% { box-shadow: 0 0 0 12px rgba(239, 68, 68, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+        }
+
+        /* Top Right Buttons */
+        #top-actions {
+            position: absolute;
+            top: 18px;
+            right: 20px;
+            z-index: 10;
+            display: flex;
+            gap: 10px;
+        }
+        .icon-btn {
+            background: rgba(15, 23, 42, 0.75);
+            backdrop-filter: blur(14px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            color: #f1f5f9;
+            padding: 10px 16px;
+            border-radius: 12px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .icon-btn:hover {
+            background: rgba(56, 189, 248, 0.2);
+            border-color: #38bdf8;
+        }
+        .icon-btn.active {
+            background: rgba(236, 72, 153, 0.35);
+            border-color: #ec4899;
+            color: #fbcfe8;
+            box-shadow: 0 0 16px rgba(236, 72, 153, 0.4);
+        }
+        #toggle-ar-btn {
+            background: linear-gradient(135deg, rgba(236, 72, 153, 0.4), rgba(56, 189, 248, 0.4));
+            border-color: rgba(236, 72, 153, 0.65);
+            color: #ffffff;
+            font-weight: 700;
+            box-shadow: 0 0 12px rgba(236, 72, 153, 0.3);
+        }
+        #toggle-ar-btn:hover {
+            background: linear-gradient(135deg, rgba(236, 72, 153, 0.6), rgba(56, 189, 248, 0.6));
+            border-color: #ec4899;
+            box-shadow: 0 0 18px rgba(236, 72, 153, 0.6);
+            transform: translateY(-2px);
+        }
+
+        /* Pokemon GO Style AR Camera Passthrough & Controls */
+        #ar-camera-video {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            object-fit: cover;
+            z-index: 0;
+            display: none;
+            pointer-events: none;
+        }
+        #ar-control-bar {
+            position: absolute;
+            top: 72px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 25;
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            background: rgba(15, 23, 42, 0.88);
+            backdrop-filter: blur(16px);
+            padding: 8px 14px;
+            border-radius: 30px;
+            border: 1px solid rgba(255, 255, 255, 0.22);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            animation: fadeInDown 0.3s ease;
+        }
+        @keyframes fadeInDown {
+            from { opacity: 0; transform: translate(-50%, -10px); }
+            to { opacity: 1; transform: translate(-50%, 0); }
+        }
+        .ar-action-btn {
+            background: rgba(255, 255, 255, 0.12);
+            border: 1px solid rgba(255, 255, 255, 0.25);
+            color: #f1f5f9;
+            padding: 7px 15px;
+            border-radius: 20px;
+            font-size: 0.82rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+        .ar-action-btn:hover {
+            background: rgba(236, 72, 153, 0.3);
+            border-color: #ec4899;
+        }
+        .snap-btn {
+            background: linear-gradient(135deg, #ec4899, #8b5cf6);
+            border: none;
+            color: white;
+            box-shadow: 0 4px 15px rgba(236, 72, 153, 0.4);
+        }
+        .snap-btn:hover {
+            transform: scale(1.04);
+            box-shadow: 0 6px 20px rgba(236, 72, 153, 0.6);
+        }
+
+        /* Chat History Drawer */
+        #chat-drawer {
+            position: absolute;
+            left: 20px;
+            bottom: 120px;
+            width: 360px;
+            max-height: 420px;
+            background: rgba(15, 23, 42, 0.92);
+            backdrop-filter: blur(18px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 20px;
+            padding: 16px;
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+            transition: all 0.3s ease;
+        }
+        #chat-drawer.hidden {
+            opacity: 0;
+            pointer-events: none;
+            transform: translateY(20px);
+        }
+        #chat-history {
+            flex: 1;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            padding-right: 4px;
+        }
+        .msg-bubble {
+            padding: 9px 13px;
+            border-radius: 14px;
+            font-size: 0.85rem;
+            line-height: 1.45;
+        }
+        .msg-user {
+            background: #0284c7;
+            align-self: flex-end;
+            color: #fff;
+            border-bottom-right-radius: 2px;
+        }
+        .msg-rem {
+            background: #1e293b;
+            align-self: flex-start;
+            color: #e2e8f0;
+            border-bottom-left-radius: 2px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        /* Settings Modal */
+        #settings-modal {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: min(480px, 92vw);
+            background: rgba(15, 23, 42, 0.96);
+            backdrop-filter: blur(24px);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            border-radius: 24px;
+            padding: 26px;
+            z-index: 100;
+            box-shadow: 0 24px 60px rgba(0, 0, 0, 0.65);
+            display: none;
+        }
+        #settings-modal.active { display: block; }
+        .form-group { margin-bottom: 18px; }
+        .form-group label {
+            display: block;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: #94a3b8;
+            margin-bottom: 6px;
+        }
+        .form-group input {
+            width: 100%;
+            background: rgba(30, 41, 59, 0.8);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 10px;
+            padding: 10px 14px;
+            color: #fff;
+            font-size: 0.9rem;
+            outline: none;
+        }
+        .modal-buttons {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-top: 22px;
+        }
+
+        #nav-hint {
+            position: absolute;
+            top: 18px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 5;
+            background: rgba(0, 0, 0, 0.45);
+            backdrop-filter: blur(8px);
+            padding: 6px 16px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            color: #cbd5e1;
+            pointer-events: none;
+            transition: all 0.2s ease;
+        }
+
+        /* Mobile Responsive Design (Android & Handheld) */
+        @media (max-width: 768px) {
+            #top-header {
+                top: 10px;
+                left: 10px;
+                padding: 8px 12px;
+                border-radius: 14px;
+                max-width: calc(100vw - 210px);
+            }
+            #top-header h1 {
+                font-size: 0.88rem;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+            #top-header p {
+                display: none;
+            }
+            #top-actions {
+                top: 10px;
+                right: 10px;
+                gap: 5px;
+            }
+            .icon-btn {
+                padding: 7px 11px;
+                font-size: 0.76rem;
+                border-radius: 10px;
+                min-height: 36px;
+            }
+            .icon-btn.active {
+                background: rgba(56, 189, 248, 0.35);
+                border-color: #38bdf8;
+                color: #ffffff;
+            }
+            #speech-bubble {
+                top: 56px;
+                width: 94vw;
+                max-width: 94vw;
+                padding: 10px 16px;
+                border-radius: 16px;
+            }
+            #speech-status {
+                font-size: 0.68rem;
+                margin-bottom: 3px;
+                letter-spacing: 1px;
+            }
+            #speech-text {
+                font-size: 0.96rem;
+                line-height: 1.35;
+            }
+            #nav-hint {
+                top: auto;
+                bottom: 112px;
+                font-size: 0.68rem;
+                padding: 4px 12px;
+                white-space: nowrap;
+            }
+            #chat-bar-container {
+                bottom: max(10px, env(safe-area-inset-bottom, 10px));
+                width: 95vw;
+                gap: 7px;
+            }
+            #quick-chips {
+                gap: 6px;
+                -webkit-overflow-scrolling: touch;
+            }
+            .chip {
+                padding: 6px 12px;
+                font-size: 0.75rem;
+                border-radius: 16px;
+                flex-shrink: 0;
+            }
+            #main-input-bar {
+                padding: 5px 8px;
+                border-radius: 26px;
+                gap: 6px;
+            }
+            #chat-input {
+                font-size: 0.86rem;
+                padding-left: 8px;
+            }
+            .action-btn {
+                padding: 7px 12px;
+                font-size: 0.78rem;
+                border-radius: 20px;
+                min-height: 38px;
+            }
+            #voice-btn {
+                padding: 7px 10px;
+            }
+            #chat-drawer {
+                left: 10px;
+                right: 10px;
+                width: auto;
+                bottom: 125px;
+                max-height: 48vh;
+                border-radius: 16px;
+                padding: 14px;
+            }
+            #settings-modal {
+                width: 94vw;
+                max-height: 85vh;
+                overflow-y: auto;
+                padding: 20px 16px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="nav-hint">🖱️ Drag to look around • Scroll to zoom • W/A/S/D to move</div>
+
+    <div id="top-header">
+        <h1>🌸 Project Remniscence</h1>
+        <p>Lugnica Lookout Terrace • From Zero</p>
+    </div>
+
+    <div id="top-actions">
+        <button id="toggle-ar-btn" class="icon-btn">📷 AR Mode</button>
+        <button id="gyro-btn" class="icon-btn">📱 Gyro</button>
+        <button id="toggle-history-btn" class="icon-btn">💬 History</button>
+        <button id="settings-btn" class="icon-btn">⚙️ Settings</button>
+        <button id="enter-vr-btn" class="icon-btn" style="display:none;">🥽 Enter VR</button>
+        <button id="enter-ar-btn" class="icon-btn" style="display:none;">📱 Enter AR</button>
+    </div>
+
+    <!-- Pokemon GO AR Mode HUD Controls -->
+    <div id="ar-control-bar" style="display: none;">
+        <button id="ar-scale-btn" class="ar-action-btn">🧸 Desk Figurine (38cm)</button>
+        <button id="ar-snap-btn" class="ar-action-btn snap-btn">📸 Take AR Photo</button>
+        <button id="ar-exit-btn" class="ar-action-btn">❌ Exit AR</button>
+    </div>
+
+    <!-- Speech Subtitle Overlay -->
+    <div id="speech-bubble">
+        <div id="speech-status">🌸 Rem is here with you</div>
+        <div id="speech-text">"From here, let's start from one... No, from zero!"</div>
+    </div>
+
+    <!-- Chat History Drawer -->
+    <div id="chat-drawer" class="hidden">
+        <h3 style="font-size: 0.95rem; margin-bottom: 12px; color: #38bdf8;">Conversation Log</h3>
+        <div id="chat-history"></div>
+    </div>
+
+    <!-- Bottom Chat & Voice Controls -->
+    <div id="chat-bar-container">
+        <div id="quick-chips">
+            <button class="chip" data-action="companion" data-prompt="Rem, come walk with me and stand right here beside me.">🚶‍♀️ Walk with Me</button>
+            <button class="chip" data-action="view" data-prompt="Rem, let's walk over to the balustrade and look out at the beautiful kingdom of Lugnica together.">🏰 Balcony Lookout</button>
+            <button class="chip" data-action="pillar" data-prompt="Rem, let's walk over to Subaru's broken ruin pillar.">🏛️ Subaru's Pillar</button>
+            <button class="chip" data-prompt="Rem, tell me why we should start from zero.">🌟 Start from Zero</button>
+            <button class="chip" data-prompt="Rem, I'm working hard on my coding project. Can you cheer me on?">💖 Coding Cheer</button>
+            <button class="chip" data-prompt="Rem, please check how I'm sitting and remind me to stretch.">🪑 Posture Check</button>
+            <button class="chip" data-prompt="Rem, remind me to drink some water.">💧 Water Reminder</button>
+        </div>
+        <div id="main-input-bar">
+            <input id="chat-input" type="text" placeholder="Speak to Rem or type a message...">
+            <button id="voice-btn" class="action-btn">🎙️ Hold to Speak (V)</button>
+            <button id="send-btn" class="action-btn">Send</button>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div id="settings-modal">
+        <h2 style="font-size: 1.25rem; color: #67e8f9; margin-bottom: 16px;">⚙️ AI Companion Configuration</h2>
+        <form onsubmit="return false;">
+            <div class="form-group">
+                <label for="gemini-key">Google Gemini API Key (Conversational AI & Speech)</label>
+                <input id="gemini-key" type="password" autocomplete="off" placeholder="AIzaSy...">
+            </div>
+            <div class="form-group">
+                <label for="fish-key">Fish Audio API Key (Live Anime Voice TTS)</label>
+                <input id="fish-key" type="password" autocomplete="off" placeholder="Your Fish Audio API key">
+            </div>
+            <div class="form-group">
+                <label for="fish-model">Fish Audio Voice Model Reference ID (Optional)</label>
+                <input id="fish-model" type="text" placeholder="Custom voice model ID or leave blank">
+            </div>
+            <div class="form-group">
+                <label for="rem-model-select">Rem 3D Model Posture / Pose</label>
+                <select id="rem-model-select" style="width: 100%; padding: 10px; background: rgba(15,23,42,0.8); border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; color: #f1f5f9; font-size: 0.9rem;">
+                    <option value="models/Rem.glb">Authentic Episode 18 Maid Pose (Canonical & Flawless)</option>
+                    <option value="models/Rem_authentic_standalone.glb">Original Sketchfab Masterpiece Model</option>
+                </select>
+            </div>
+            <div class="modal-buttons">
+                <button type="button" id="close-settings" class="icon-btn">Cancel</button>
+                <button type="submit" id="save-settings" class="action-btn">Save Settings</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Pokemon GO AR Real-World Camera Passthrough Video -->
+    <video id="ar-camera-video" playsinline autoplay muted></video>
+
+    <!-- 3D Canvas -->
+    <div id="webgl-canvas"></div>
+
+    <script>
+        // =====================================================================
+        // 1. CONFIGURATION & STATE
+        // =====================================================================
+        const State = {
+            geminiApiKey: localStorage.getItem('rem_gemini_key') || '',
+            fishAudioApiKey: localStorage.getItem('rem_fish_key') || '',
+            fishAudioModelId: localStorage.getItem('rem_fish_model') || '',
+            isSpeaking: false,
+            isRecording: false,
+            history: []
+        };
+
+        const RemPersona = `You are Rem, the gentle, caring, and devoted anime maid companion from Re:Zero.
+You and your user, Harshit, are standing together on the sunny stone terrace of the capital Lugnica overlooking the distant mountain ranges and the kingdom.
+Persona & Voice Guidelines:
+1. Tone: Humble, sweet, respectful, warm, and deeply comforting.
+2. Form of Address: Call him Harshit. Rem speaks with genuine devotion and care.
+3. Reference: You believe in Harshit unconditionally, just like your iconic speech from Episode 18 ("From here, let's start from one... No, from zero!").
+4. Response Length: Keep your responses to 1-3 concise sentences so it sounds natural when spoken aloud via Text-to-Speech.
+5. Absolute Rule: Do NOT include asterisks (*smiles*, *looks at the view*), emoji, or markdown actions. Speak pure direct dialogue.`;
+
+        // =====================================================================
+        // 2. THREE.JS 3D ENVIRONMENT (LUGNICA BALCONY - RE:ZERO EPISODE 18)
+        // =====================================================================
+        let scene, camera, renderer, controls;
+        let composer, bloomPass;
+        let remModel = null;
+        let doves = [];
+        let manaParticles;
+        let godRays;
+        let sakuraPetals = [];
+        let terraceFloor = null;
+        let tapRipples = [];
+        const clock = new THREE.Clock();
+
+        function init3D() {
+            try {
+                const container = document.getElementById('webgl-canvas');
+                scene = new THREE.Scene();
+
+                // First-person conversational view: perfectly framing Rem's face, hands, and maid posture
+                camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
+                camera.position.set(0, 1.20, 2.5); // Balanced companion view framing full authentic body
+
+                renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+                renderer.setClearColor(0x000000, 0); // Allow camera passthrough transparency in AR mode
+                renderer.setSize(window.innerWidth, window.innerHeight);
+
+                // Cap pixel ratio to 1.5 on high-DPI mobile devices for smooth 60fps
+                const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || (window.innerWidth <= 768);
+                renderer.setPixelRatio(Math.min(window.devicePixelRatio, isMobile ? 1.5 : 2.0));
+
+                renderer.toneMapping = THREE.ACESFilmicToneMapping;
+                renderer.toneMappingExposure = 0.82;
+                renderer.shadowMap.enabled = true;
+                renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+                renderer.outputEncoding = THREE.sRGBEncoding;
+                container.appendChild(renderer.domElement);
+
+                controls = new THREE.OrbitControls(camera, renderer.domElement);
+                controls.enableDamping = true;
+                controls.dampingFactor = 0.05;
+                // Android & touch controls: 1-finger orbit, 2-finger pinch zoom/pan
+                controls.touches = {
+                    ONE: THREE.TOUCH.ROTATE,
+                    TWO: THREE.TOUCH.DOLLY_PAN
+                };
+                controls.target.set(0, 0.95, 0); // Focus on Rem's authentic posture and expression
+                controls.maxPolarAngle = Math.PI / 2 + 0.02; // Don't look below floor
+                controls.minDistance = 0.8;
+                controls.maxDistance = 5.0;
+
+                // Tap-to-Walk: Quick tap on the terrace floor commands Rem to walk there
+                let pointerDownPos = { x: 0, y: 0 };
+                let pointerDownTime = 0;
+
+                renderer.domElement.addEventListener('pointerdown', (e) => {
+                    pointerDownPos = { x: e.clientX, y: e.clientY };
+                    pointerDownTime = performance.now();
+                });
+
+                renderer.domElement.addEventListener('pointerup', (e) => {
+                    const dt = performance.now() - pointerDownTime;
+                    const dist = Math.hypot(e.clientX - pointerDownPos.x, e.clientY - pointerDownPos.y);
+                    if (dt < 350 && dist < 12) {
+                        handleTerraceTap(e.clientX, e.clientY);
+                    }
+                });
+
+                // Post-Processing Pipeline: UnrealBloomPass (Dreamy Anime Aesthetic with crisp highlights)
+                try {
+                    if (typeof THREE.EffectComposer !== 'undefined' && typeof THREE.UnrealBloomPass !== 'undefined' && typeof THREE.ShaderPass !== 'undefined') {
+                        const renderTarget = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight, {
+                            minFilter: THREE.LinearFilter,
+                            magFilter: THREE.LinearFilter,
+                            format: THREE.RGBAFormat,
+                            encoding: THREE.sRGBEncoding
+                        });
+                        composer = new THREE.EffectComposer(renderer, renderTarget);
+                        const renderPass = new THREE.RenderPass(scene, camera);
+                        composer.addPass(renderPass);
+
+                        bloomPass = new THREE.UnrealBloomPass(
+                            new THREE.Vector2(window.innerWidth, window.innerHeight),
+                            0.12,  // bloom strength: subtle ethereal anime glow
+                            0.28,  // bloom radius: smooth diffuse spread
+                            1.08   // threshold: only radiant glints, motes, and jewelry bloom
+                        );
+                        bloomPass.highPassUniforms['smoothWidth'].value = 0.05;
+                        composer.addPass(bloomPass);
+                    }
+                } catch (postErr) {
+                    console.warn("Post-processing fallback to standard renderer:", postErr);
+                    composer = null;
+                }
+
+                buildLugnicaBalconyScene();
+                loadRemCharacter();
+                setupDovesAndParticles();
+                setupWebXR();
+
+                window.addEventListener('resize', onWindowResize);
+                animate();
+            } catch (err) {
+                console.error("init3D Error:", err);
+                const el = document.getElementById('speech-text');
+                if (el) el.innerText = "INIT ERROR: " + err.message;
+            }
+        }
+
+        function buildLugnicaBalconyScene() {
+            const texLoader = new THREE.TextureLoader();
+
+            // 1. HIGH-DEFINITION TEXTURES
+            const royalPavingTex = texLoader.load('textures/royal_paving.jpg');
+            royalPavingTex.encoding = THREE.sRGBEncoding;
+
+            const royalPavingNorm = texLoader.load('textures/royal_paving_normal.jpg');
+
+            const marbleTex = texLoader.load('textures/marble_clean.jpg');
+            marbleTex.wrapS = THREE.RepeatWrapping;
+            marbleTex.wrapT = THREE.RepeatWrapping;
+            marbleTex.encoding = THREE.sRGBEncoding;
+
+            const marbleNorm = texLoader.load('textures/marble_clean_normal.jpg');
+            marbleNorm.wrapS = THREE.RepeatWrapping;
+            marbleNorm.wrapT = THREE.RepeatWrapping;
+
+            // 2. TRUE 360-DEGREE SEAMLESS EQUIRECTANGULAR ANIME PANORAMA (RE:ZERO LUGNICA)
+            // Infinite depth, zero seams, zero billboard edges!
+            const panoTex = texLoader.load('textures/lugnica_360_masterpiece.jpg');
+            panoTex.mapping = THREE.EquirectangularReflectionMapping;
+            panoTex.encoding = THREE.sRGBEncoding;
+            scene.background = panoTex;
+            window.lugnicaSkyPano = panoTex;
+
+            // Pokemon GO AR Ground Shadow Plane (Grounds Rem onto real floors & desks with soft contact shadow)
+            const shadowPlaneGeo = new THREE.PlaneGeometry(30, 30);
+            const shadowPlaneMat = new THREE.ShadowMaterial({ opacity: 0.38 });
+            window.arShadowPlane = new THREE.Mesh(shadowPlaneGeo, shadowPlaneMat);
+            window.arShadowPlane.rotation.x = -Math.PI / 2;
+            window.arShadowPlane.position.y = 0.001;
+            window.arShadowPlane.receiveShadow = true;
+            window.arShadowPlane.visible = false;
+            scene.add(window.arShadowPlane);
+
+            // Group all Lugnica Balcony architectural elements so they can be toggled in AR mode
+            window.lugnicaTerraceGroup = new THREE.Group();
+            scene.add(window.lugnicaTerraceGroup);
+
+            // 3. CINEMATIC ANIME LIGHTING & DEDICATED CHARACTER TOON SHADING
+            // Balanced ambient sky/ground fill ensuring rich, saturated toon shadow contrast
+            const hemiLight = new THREE.HemisphereLight(0xa5cbf7, 0xd8b590, 0.22);
+            scene.add(hemiLight);
+
+            // Sun light for outdoor terrace architecture and distant scenery
+            const sunLight = new THREE.DirectionalLight(0xfff1d6, 0.65);
+            sunLight.position.set(16, 28, -18);
+            sunLight.castShadow = true;
+            sunLight.shadow.mapSize.width = 2048;
+            sunLight.shadow.mapSize.height = 2048;
+            sunLight.shadow.camera.near = 0.5;
+            sunLight.shadow.camera.far = 60;
+            sunLight.shadow.camera.left = -6;
+            sunLight.shadow.camera.right = 6;
+            sunLight.shadow.camera.top = 6;
+            sunLight.shadow.camera.bottom = -6;
+            sunLight.shadow.bias = -0.0003;
+            scene.add(sunLight);
+
+            // Dedicated Character Anime Key Light (upper-front right)
+            // Illuminates Rem's face, casting crisp anime shadows under bangs, chin, and apron folds
+            const charKeyLight = new THREE.DirectionalLight(0xfff8ee, 0.78);
+            charKeyLight.position.set(2.5, 6.0, 4.2);
+            charKeyLight.target.position.set(0, 0.95, 0);
+            charKeyLight.castShadow = true;
+            charKeyLight.shadow.mapSize.width = 2048;
+            charKeyLight.shadow.mapSize.height = 2048;
+            charKeyLight.shadow.camera.near = 0.5;
+            charKeyLight.shadow.camera.far = 15.0;
+            charKeyLight.shadow.camera.left = -1.2;
+            charKeyLight.shadow.camera.right = 1.2;
+            charKeyLight.shadow.camera.top = 1.8;
+            charKeyLight.shadow.camera.bottom = -0.2;
+            charKeyLight.shadow.bias = 0.00005;
+            charKeyLight.shadow.normalBias = 0.02;
+            scene.add(charKeyLight);
+            scene.add(charKeyLight.target);
+
+            // Character Soft Cool Sky Fill Light (front left)
+            const charFillLight = new THREE.DirectionalLight(0xbddbff, 0.16);
+            charFillLight.position.set(-3.5, 4.5, 3.8);
+            charFillLight.target.position.set(0, 0.95, 0);
+            scene.add(charFillLight);
+            scene.add(charFillLight.target);
+
+            // Character Golden Rim / Hair Halo Light (rear rim)
+            const charRimLight = new THREE.DirectionalLight(0xfff0cc, 0.40);
+            charRimLight.position.set(-2.5, 7.0, -4.0);
+            charRimLight.target.position.set(0, 0.95, 0);
+            scene.add(charRimLight);
+            scene.add(charRimLight.target);
+
+            // 4. TERRACE FLOOR (ROYAL MANDALA SANDSTONE PAVING WITH RICH DEPTH)
+            const floorMat = new THREE.MeshStandardMaterial({
+                map: royalPavingTex,
+                normalMap: royalPavingNorm,
+                normalScale: new THREE.Vector2(1.5, 1.5),
+                roughness: 0.78,
+                metalness: 0.02,
+                color: 0xded5c6
+            });
+            terraceFloor = new THREE.Mesh(new THREE.CylinderGeometry(8.8, 8.8, 0.45, 64), floorMat);
+            terraceFloor.position.y = -0.225;
+            terraceFloor.receiveShadow = true;
+            window.lugnicaTerraceGroup.add(terraceFloor);
+
+            // Antique Gilded Inlay Rings framing the central mandala
+            const goldInlayMat = new THREE.MeshStandardMaterial({
+                color: 0xa17c38,
+                roughness: 0.35,
+                metalness: 0.82
+            });
+            const innerGoldRing = new THREE.Mesh(new THREE.TorusGeometry(3.68, 0.035, 12, 64), goldInlayMat);
+            innerGoldRing.rotation.x = Math.PI / 2;
+            innerGoldRing.position.y = 0.01;
+            innerGoldRing.receiveShadow = true;
+            window.lugnicaTerraceGroup.add(innerGoldRing);
+
+            const outerGoldRing = new THREE.Mesh(new THREE.TorusGeometry(6.45, 0.04, 12, 64), goldInlayMat);
+            outerGoldRing.rotation.x = Math.PI / 2;
+            outerGoldRing.position.y = 0.01;
+            outerGoldRing.receiveShadow = true;
+            window.lugnicaTerraceGroup.add(outerGoldRing);
+
+            const marbleMat = new THREE.MeshStandardMaterial({
+                map: marbleTex,
+                normalMap: marbleNorm,
+                normalScale: new THREE.Vector2(0.9, 0.9),
+                roughness: 0.65,
+                metalness: 0.02,
+                color: 0xd8cebf
+            });
+
+            // Molded perimeter kerb ring
+            const kerb = new THREE.Mesh(new THREE.TorusGeometry(8.75, 0.14, 16, 64), marbleMat);
+            kerb.rotation.x = Math.PI / 2;
+            kerb.position.y = 0.02;
+            kerb.receiveShadow = true;
+            window.lugnicaTerraceGroup.add(kerb);
+
+            // 5. CLASSICAL SCULPTED BALUSTRADE (RENAISSANCE / ROYAL GRECO-ROMAN)
+            function createBalusterGeometry() {
+                const points = [];
+                points.push(new THREE.Vector2(0.08, 0.0));
+                points.push(new THREE.Vector2(0.08, 0.10));
+                points.push(new THREE.Vector2(0.105, 0.14));
+                points.push(new THREE.Vector2(0.12, 0.24));
+                points.push(new THREE.Vector2(0.11, 0.36));
+                points.push(new THREE.Vector2(0.065, 0.50));
+                points.push(new THREE.Vector2(0.085, 0.60));
+                points.push(new THREE.Vector2(0.075, 0.64));
+                points.push(new THREE.Vector2(0.08, 0.72));
+                return new THREE.LatheGeometry(points, 16);
+            }
+
+            const balusterGeo = createBalusterGeometry();
+            const balustradeRadius = 8.2;
+            const totalSegments = 54;
+            const pierInterval = 6;
+            const balustradeAngle = Math.PI * 1.58;
+            const balustradeStart = -balustradeAngle / 2;
+
+            const flowerColors = [0x2563eb, 0x9333ea, 0xec4899, 0xf43f5e, 0x0ea5e9, 0xf59e0b];
+
+            for (let i = 0; i <= totalSegments; i++) {
+                const theta = balustradeStart + (i / totalSegments) * balustradeAngle;
+                const bx = Math.sin(theta) * balustradeRadius;
+                const bz = -Math.cos(theta) * balustradeRadius;
+
+                if (i % pierInterval === 0) {
+                    const pierGroup = new THREE.Group();
+                    pierGroup.position.set(bx, 0, bz);
+                    pierGroup.rotation.y = theta;
+
+                    const pBase = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.25, 0.55), marbleMat);
+                    pBase.position.y = 0.125;
+                    pBase.castShadow = true;
+                    pBase.receiveShadow = true;
+                    pierGroup.add(pBase);
+
+                    const pBody = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.65, 0.44), marbleMat);
+                    pBody.position.y = 0.575;
+                    pBody.castShadow = true;
+                    pBody.receiveShadow = true;
+                    pierGroup.add(pBody);
+
+                    const pCap = new THREE.Mesh(new THREE.BoxGeometry(0.56, 0.14, 0.56), marbleMat);
+                    pCap.position.y = 0.97;
+                    pCap.castShadow = true;
+                    pCap.receiveShadow = true;
+                    pierGroup.add(pCap);
+
+                    // Classical Sculpted Renaissance Stone Urn / Finial
+                    const urnPoints = [
+                        new THREE.Vector2(0.12, 0.0),
+                        new THREE.Vector2(0.12, 0.05),
+                        new THREE.Vector2(0.08, 0.09),
+                        new THREE.Vector2(0.16, 0.18),
+                        new THREE.Vector2(0.18, 0.28),
+                        new THREE.Vector2(0.12, 0.36),
+                        new THREE.Vector2(0.15, 0.40),
+                        new THREE.Vector2(0.07, 0.46),
+                        new THREE.Vector2(0.02, 0.52),
+                        new THREE.Vector2(0.0, 0.56)
+                    ];
+                    const urn = new THREE.Mesh(new THREE.LatheGeometry(urnPoints, 24), marbleMat);
+                    urn.position.y = 1.04;
+                    urn.castShadow = true;
+                    urn.receiveShadow = true;
+                    pierGroup.add(urn);
+
+                    // Gilded Bronze decorative accent ring
+                    const urnNeck = new THREE.Mesh(new THREE.TorusGeometry(0.125, 0.016, 12, 24), goldInlayMat);
+                    urnNeck.rotation.x = Math.PI / 2;
+                    urnNeck.position.y = 1.40;
+                    urnNeck.castShadow = true;
+                    pierGroup.add(urnNeck);
+
+                    window.lugnicaTerraceGroup.add(pierGroup);
+                } else {
+                    const baluster = new THREE.Mesh(balusterGeo, marbleMat);
+                    baluster.position.set(bx, 0.15, bz);
+                    baluster.rotation.y = theta;
+                    baluster.castShadow = true;
+                    baluster.receiveShadow = true;
+                    window.lugnicaTerraceGroup.add(baluster);
+                }
+            }
+
+            // Continuous Molded Lower Rail & Upper Handrail
+            const railSegments = 72;
+            const railCurveAngle = Math.PI * 1.58;
+            const railStart = -railCurveAngle / 2;
+
+            for (let i = 0; i < railSegments; i++) {
+                const t1 = railStart + (i / railSegments) * railCurveAngle;
+                const t2 = railStart + ((i + 1) / railSegments) * railCurveAngle;
+                const midT = (t1 + t2) / 2;
+                const segLen = (railCurveAngle / railSegments) * balustradeRadius;
+
+                const rx = Math.sin(midT) * balustradeRadius;
+                const rz = -Math.cos(midT) * balustradeRadius;
+
+                const lowerRail = new THREE.Mesh(new THREE.BoxGeometry(segLen * 1.02, 0.15, 0.34), marbleMat);
+                lowerRail.position.set(rx, 0.075, rz);
+                lowerRail.rotation.y = midT;
+                lowerRail.castShadow = true;
+                lowerRail.receiveShadow = true;
+                window.lugnicaTerraceGroup.add(lowerRail);
+
+                const upperRail = new THREE.Mesh(new THREE.BoxGeometry(segLen * 1.02, 0.12, 0.36), marbleMat);
+                upperRail.position.set(rx, 0.92, rz);
+                upperRail.rotation.y = midT;
+                upperRail.castShadow = true;
+                upperRail.receiveShadow = true;
+                window.lugnicaTerraceGroup.add(upperRail);
+
+                const handrailCap = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, segLen * 1.02, 12), marbleMat);
+                handrailCap.position.set(rx, 0.98, rz);
+                handrailCap.rotation.z = Math.PI / 2;
+                handrailCap.rotation.y = midT + Math.PI / 2;
+                handrailCap.castShadow = true;
+                window.lugnicaTerraceGroup.add(handrailCap);
+            }
+
+            // 6. SUBARU'S ICONIC RUINED PILLAR (RE:ZERO EPISODE 18)
+            // Beautiful fluted marble ruin set off to the right side, framing the vista without blocking the 360° Lugnica panorama
+            buildFlutedCorinthianColumn(3.8, 0, -2.2, 2.6, true, marbleMat);
+        }
+
+        function buildFlutedCorinthianColumn(x, y, z, height, isRuined, marbleMat) {
+            const group = new THREE.Group();
+            group.position.set(x, y, z);
+
+            const baseBox = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.38, 1.6), marbleMat);
+            baseBox.position.y = 0.19;
+            baseBox.castShadow = true;
+            baseBox.receiveShadow = true;
+            group.add(baseBox);
+
+            const torus1 = new THREE.Mesh(new THREE.TorusGeometry(0.68, 0.08, 16, 32), marbleMat);
+            torus1.rotation.x = Math.PI / 2;
+            torus1.position.y = 0.42;
+            torus1.castShadow = true;
+            group.add(torus1);
+
+            const torus2 = new THREE.Mesh(new THREE.TorusGeometry(0.60, 0.07, 16, 32), marbleMat);
+            torus2.rotation.x = Math.PI / 2;
+            torus2.position.y = 0.54;
+            torus2.castShadow = true;
+            group.add(torus2);
+
+            const shaftHeight = isRuined ? height - 0.9 : height - 1.2;
+            const shaftCore = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.50, 0.54, shaftHeight, 32),
+                marbleMat
+            );
+            shaftCore.position.y = 0.6 + shaftHeight / 2;
+            shaftCore.castShadow = true;
+            shaftCore.receiveShadow = true;
+            group.add(shaftCore);
+
+            const numFlutes = 20;
+            for (let f = 0; f < numFlutes; f++) {
+                const angle = (f / numFlutes) * Math.PI * 2;
+                const fx = Math.sin(angle) * 0.525;
+                const fz = Math.cos(angle) * 0.525;
+                const flute = new THREE.Mesh(
+                    new THREE.CylinderGeometry(0.045, 0.048, shaftHeight, 8),
+                    marbleMat
+                );
+                flute.position.set(fx, 0.6 + shaftHeight / 2, fz);
+                flute.castShadow = true;
+                group.add(flute);
+            }
+
+            if (!isRuined) {
+                const capY = 0.6 + shaftHeight;
+                const capital = new THREE.Mesh(new THREE.CylinderGeometry(0.72, 0.54, 0.55, 24), marbleMat);
+                capital.position.y = capY + 0.275;
+                capital.castShadow = true;
+                group.add(capital);
+
+                const abacus = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.24, 1.4), marbleMat);
+                abacus.position.y = capY + 0.67;
+                abacus.castShadow = true;
+                group.add(abacus);
+            } else {
+                const breakY = 0.6 + shaftHeight;
+                const fracture1 = new THREE.Mesh(new THREE.DodecahedronGeometry(0.48, 1), marbleMat);
+                fracture1.position.set(0.08, breakY + 0.15, -0.05);
+                fracture1.scale.set(1.2, 0.6, 1.1);
+                fracture1.rotation.set(0.2, 0.4, -0.15);
+                fracture1.castShadow = true;
+                group.add(fracture1);
+
+                const fallenBlock1 = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.32, 0.45), marbleMat);
+                fallenBlock1.position.set(0.7, 0.16, 0.85);
+                fallenBlock1.rotation.set(0.1, 0.6, 0.05);
+                fallenBlock1.castShadow = true;
+                fallenBlock1.receiveShadow = true;
+                group.add(fallenBlock1);
+
+                // Fallen broken drum ring tilted near plinth
+                const fallenDrum = new THREE.Mesh(new THREE.CylinderGeometry(0.48, 0.48, 0.45, 16), marbleMat);
+                fallenDrum.position.set(1.1, 0.24, 0.35);
+                fallenDrum.rotation.set(0.35, 0.2, 0.55);
+                fallenDrum.castShadow = true;
+                fallenDrum.receiveShadow = true;
+                group.add(fallenDrum);
+
+                const fallenBlock2 = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.28, 0.38), marbleMat);
+                fallenBlock2.position.set(1.35, 0.14, -0.2);
+                fallenBlock2.rotation.set(-0.1, 0.3, 0.12);
+                fallenBlock2.castShadow = true;
+                fallenBlock2.receiveShadow = true;
+                group.add(fallenBlock2);
+            }
+
+            window.lugnicaTerraceGroup.add(group);
+        }
+
+        // =====================================================================
+        // 4. LOAD & SKELETALLY RIG AUTHENTIC REM + BIPEDAL STRIDE & IDLE ENGINE
+        // =====================================================================
+        const RemNav = {
+            state: 'IDLE', // 'IDLE' | 'WALKING'
+            targetX: 0,
+            targetZ: 0,
+            walkWeight: 0.0,
+            targetWalkWeight: 0.0,
+            walkPhase: 0,
+            lastTime: 0,
+            currentSpot: 'companion',
+            waypoints: {
+                companion: { x: 0, z: 0 },
+                balconyCenter: { x: 0, z: -2.8 },
+                subaruPillar: { x: 1.8, z: -1.2 },
+                overlookLeft: { x: -1.8, z: -1.6 }
+            },
+            walkToWaypoint: function(name) {
+                const wp = this.waypoints[name];
+                if (!wp) return;
+                this.currentSpot = name;
+                this.targetX = window.remBaseX + wp.x;
+                this.targetZ = window.remBaseZ + wp.z;
+                this.state = 'WALKING';
+                this.targetWalkWeight = 1.0;
+            },
+            update: function(time) {
+                if (!remModel || window.remBaseY === undefined) return;
+                const joints = window.remJoints;
+                const delta = this.lastTime ? Math.min(time - this.lastTime, 0.1) : 0.016;
+                this.lastTime = time;
+
+                // Smooth zero-jitter lerping for continuous transition between Idle and Walk
+                this.walkWeight = THREE.MathUtils.lerp(this.walkWeight, this.targetWalkWeight, delta * 4.5);
+
+                if (this.state === 'WALKING') {
+                    this.targetWalkWeight = 1.0;
+                    const dx = this.targetX - remModel.position.x;
+                    const dz = this.targetZ - remModel.position.z;
+                    const dist = Math.sqrt(dx * dx + dz * dz);
+
+                    if (dist > 0.08) {
+                        // Smoothly rotate towards movement heading
+                        const heading = Math.atan2(dx, dz);
+                        let diff = heading - remModel.rotation.y;
+                        while (diff < -Math.PI) diff += Math.PI * 2;
+                        while (diff > Math.PI) diff -= Math.PI * 2;
+                        remModel.rotation.y += diff * 0.12;
+
+                        // Step forward along terrace
+                        const step = Math.min(dist, 0.024);
+                        remModel.position.x += (dx / dist) * step;
+                        remModel.position.z += (dz / dist) * step;
+
+                        // Advance bipedal stride phase
+                        this.walkPhase += delta * 4.2;
+                    } else {
+                        // Smooth arrival at target destination
+                        this.state = 'IDLE';
+                        this.targetWalkWeight = 0.0;
+                    }
+                } else {
+                    this.targetWalkWeight = 0.0;
+                    // WebXR VR Companion Dynamic Follow:
+                    if (renderer.xr && renderer.xr.isPresenting) {
+                        const userPos = new THREE.Vector3();
+                        renderer.xr.getCamera().getWorldPosition(userPos);
+                        const distToUser = Math.hypot(userPos.x - remModel.position.x, userPos.z - remModel.position.z);
+                        if (distToUser > 2.8 && this.state !== 'WALKING') {
+                            const dirX = (userPos.x - remModel.position.x) / distToUser;
+                            const dirZ = (userPos.z - remModel.position.z) / distToUser;
+                            this.targetX = userPos.x - dirX * 1.4;
+                            this.targetZ = userPos.z - dirZ * 1.4;
+                            this.currentSpot = 'custom';
+                            this.state = 'WALKING';
+                            this.targetWalkWeight = 1.0;
+                        }
+                    }
+
+                    // In IDLE: Body and feet remain firmly grounded on the terrace floor!
+                    // Rem does NOT rotate like a spinning top when camera orbits around her.
+                }
+
+                // SKELETAL KINEMATICS ENGINE UPDATE (Continuous Trigonometric Curves)
+                if (joints) {
+                    const sin = Math.sin(this.walkPhase);
+                    const cos = Math.cos(this.walkPhase);
+                    const w = this.walkWeight;
+
+                    // 1. Alternating Thigh Strides
+                    joints.leftThigh.rotation.x = sin * 0.48 * w;
+                    joints.rightThigh.rotation.x = -sin * 0.48 * w;
+
+                    // 2. Realistic Knee Flexion on Back Push-Off (Knees bend backwards only)
+                    joints.leftShin.rotation.x = Math.max(0, -cos * 0.55) * w;
+                    joints.rightShin.rotation.x = Math.max(0, cos * 0.55) * w;
+
+                    // 3. Foot Landing & Toe Articulation
+                    joints.leftFoot.rotation.x = -sin * 0.20 * w;
+                    joints.rightFoot.rotation.x = sin * 0.20 * w;
+
+                    // 4. Pelvic Sway & Step Bobbing
+                    joints.hipsBone.position.y = 8.8 + Math.abs(sin) * 0.20 * w + Math.sin(time * 2.2) * 0.04 * (1.0 - w);
+                    joints.hipsBone.rotation.z = sin * 0.025 * w;
+                    joints.hipsBone.rotation.y = sin * 0.035 * w;
+
+                    // 5. Maid Arm Counter-Swings
+                    joints.leftShoulder.rotation.x = -sin * 0.18 * w;
+                    joints.rightShoulder.rotation.x = sin * 0.18 * w;
+
+                    // 6. Chest Breathing in Idle & Counter-sway in Walk
+                    joints.chestBone.rotation.x = (Math.sin(time * 2.2) * 0.025 * (1.0 - w)) + (0.02 * w);
+                    joints.chestBone.rotation.y = -sin * 0.025 * w;
+                }
+
+                // Whole-body subtle breathing in idle & step bobbing in walk
+                if (window.remBaseY !== undefined) {
+                    remModel.position.y = window.remBaseY + Math.sin(time * 2.2) * 0.003 * (1.0 - this.walkWeight) + Math.abs(Math.sin(this.walkPhase)) * 0.012 * this.walkWeight;
+                }
+
+                // NATURAL HEAD GAZE TRACKING (Head and eyes track Harshit within natural ±50° cone)
+                if (window.remHeadGroup) {
+                    const dx = camera.position.x - remModel.position.x;
+                    const dz = camera.position.z - remModel.position.z;
+                    const angleToUser = Math.atan2(dx, dz);
+                    let relativeYaw = angleToUser - remModel.rotation.y;
+                    while (relativeYaw < -Math.PI) relativeYaw += Math.PI * 2;
+                    while (relativeYaw > Math.PI) relativeYaw -= Math.PI * 2;
+
+                    // While walking: Rem primarily looks forward along her path
+                    // While idle: Rem turns head up to ±50° (0.87 rad) to maintain natural eye contact with Harshit
+                    const maxYaw = 0.87 * (1.0 - this.walkWeight * 0.75);
+                    const targetYaw = Math.max(-maxYaw, Math.min(maxYaw, relativeYaw));
+                    window.remHeadGroup.rotation.y = THREE.MathUtils.lerp(window.remHeadGroup.rotation.y, targetYaw, delta * 3.5);
+
+                    // Vertical pitch (subtle look up/down towards camera height)
+                    const dy = camera.position.y - (remModel.position.y + 1.40);
+                    const distXZ = Math.hypot(dx, dz);
+                    const pitchAngle = -Math.atan2(dy, distXZ);
+                    const clampedPitch = Math.max(-0.15, Math.min(0.15, pitchAngle));
+
+                    const microNod = Math.sin(time * 1.2) * 0.012;
+                    window.remHeadGroup.rotation.x = THREE.MathUtils.lerp(window.remHeadGroup.rotation.x, clampedPitch * 0.35 + microNod, delta * 3.0);
+                    window.remHeadGroup.rotation.z = Math.cos(time * 0.9) * 0.010;
+                }
+            }
+        };
+
+
+
+        // =====================================================================
+        // AUTHENTIC RE:ZERO ANIME CEL-SHADING (WHITE FOX 2D/3D PALETTES)
+        // =====================================================================
+        function createRampTexture(stops) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 256;
+            canvas.height = 1;
+            const ctx = canvas.getContext('2d');
+            for (let i = 0; i < stops.length; i++) {
+                const startX = Math.floor(stops[i][0] * 256);
+                const endX = (i < stops.length - 1) ? Math.floor(stops[i + 1][0] * 256) : 256;
+                ctx.fillStyle = stops[i][1];
+                ctx.fillRect(startX, 0, Math.max(1, endX - startX), 1);
+            }
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.minFilter = THREE.NearestFilter;
+            texture.magFilter = THREE.NearestFilter;
+            texture.generateMipmaps = false;
+            return texture;
+        }
+
+        // 1. Warm porcelain peach skin ramp: warm peach-rose shadow under chin/jaw & rosy blush
+        const skinToonRamp = createRampTexture([
+            [0.00, '#c77d6e'],  // deep warm peach-rose shadow
+            [0.42, '#df988a'],  // rich chin & jaw shadow (sampled #d9a8a5 / #cb9996 from official Re:Zero art)
+            [0.55, '#f5beaf'],  // soft rosy cheek blush transition
+            [0.70, '#fde8df'],  // porcelain peach midtone
+            [0.90, '#ffffff']   // radiant highlight
+        ]);
+
+        // 2. White maid cloth ramp: iconic Re:Zero soft lilac/lavender shadows in apron folds
+        const clothToonRamp = createRampTexture([
+            [0.00, '#a89dbb'],  // deep lavender/lilac fold shadow
+            [0.42, '#c4b8d6'],  // authentic Re:Zero lilac apron fold shadow (#c8c4d6)
+            [0.55, '#ded6ec'],  // soft periwinkle transition
+            [0.72, '#f6f4fa'],  // clean crisp white cloth
+            [0.90, '#ffffff']   // direct highlight
+        ]);
+
+        // 3. Azure hair ramp: deep sapphire shadows, vibrant cerulean anime midtone, sky blue shine
+        const hairToonRamp = createRampTexture([
+            [0.00, '#36538c'],  // deep sapphire shadow
+            [0.42, '#5582c7'],  // vibrant cerulean anime blue
+            [0.58, '#7ea9eb'],  // clear sky blue midtone (#7ca3e0)
+            [0.78, '#b2d5fc'],  // radiant hair highlight (#b0daff)
+            [0.92, '#e2f0ff']   // crystalline specular glint
+        ]);
+
+        // 4. Dark maid dress ramp: deep charcoal navy with crisp slate fold highlights
+        const darkClothToonRamp = createRampTexture([
+            [0.00, '#15171e'],  // deep charcoal navy shadow
+            [0.42, '#282c38'],  // dark slate cloth shadow
+            [0.60, '#3e4455'],  // crisp fabric fold midtone
+            [0.82, '#5a627a']   // edge highlight
+        ]);
+
+        // 5. Accent ramp: katyusha flower hairpin & purple maid ribbon
+        const accentToonRamp = createRampTexture([
+            [0.00, '#8c2b4b'],  // deep magenta rose shadow
+            [0.42, '#c43e6a'],  // rich coral rose
+            [0.58, '#f55d8d'],  // vibrant anime pink flower
+            [0.80, '#ff94b8'],  // petal highlight
+            [0.92, '#ffffff']   // specular shine
+        ]);
+
+        function createAnimeMaterial(origMat, meshName) {
+            const name = (meshName || '').toLowerCase();
+            const map = origMat && origMat.map ? origMat.map : null;
+            if (map) {
+                map.encoding = THREE.sRGBEncoding;
+                map.wrapS = THREE.RepeatWrapping;
+                map.wrapT = THREE.RepeatWrapping;
+                map.needsUpdate = true;
+            }
+
+            // A. ANIME EYES (Luminous sapphire eyes & sclera stay sharp and radiant without dark occlusion)
+            if (name.includes('eye') || name.includes('whiteeye')) {
+                const basic = new THREE.MeshBasicMaterial({
+                    map: map,
+                    color: new THREE.Color(0xffffff),
+                    transparent: true,
+                    alphaTest: 0.05,
+                    depthWrite: true,
+                    side: THREE.DoubleSide
+                });
+                return basic;
+            }
+
+            // B. WHITE CLOTH: Apron, frills, collar, cuffs, white stockings, underwear
+            if (name.includes('epron') || name.includes('furill') || name.includes('frill') || 
+                name.includes('white') || name.includes('socks1') || name.includes('underwear') || 
+                name.includes('neck')) {
+                const clothMat = new THREE.MeshToonMaterial({
+                    map: map,
+                    color: new THREE.Color(0xf6f3fa), // Soft silk white with gentle lilac tone (no chalk glare)
+                    gradientMap: clothToonRamp,
+                    side: THREE.DoubleSide
+                });
+                return clothMat;
+            }
+
+            // C. BARE SKIN: Face, mouth, nose, and bare hands (hand2)
+            // Seamless toon shading with warm peach tone and stepped peach-rose chin/jaw shadows
+            if (name.includes('face') || name.includes('mouth') || name.includes('nose') || name.includes('hand2')) {
+                const skinMat = new THREE.MeshToonMaterial({
+                    map: map,
+                    color: new THREE.Color(0xffded4), // Warm porcelain peach tint eliminating chalk white!
+                    gradientMap: skinToonRamp,
+                    side: THREE.DoubleSide
+                });
+                return skinMat;
+            }
+
+            // D. HAIR: Rich azure & cerulean anime blue with depth
+            if (name.includes('hair') || name.includes('backhair')) {
+                const hairMat = new THREE.MeshToonMaterial({
+                    map: map,
+                    color: new THREE.Color(0xeaf4ff),
+                    gradientMap: hairToonRamp,
+                    side: THREE.DoubleSide
+                });
+                return hairMat;
+            }
+
+            // E. BLACK MAID FABRIC: Black sleeves (hand1), dark skirt, black dress, black shoes (socks2)
+            if (name.includes('black') || name.includes('skirt') || name.includes('hand1') || name.includes('socks2')) {
+                const blackMat = new THREE.MeshToonMaterial({
+                    map: map,
+                    color: new THREE.Color(0xffffff),
+                    gradientMap: darkClothToonRamp,
+                    side: THREE.DoubleSide
+                });
+                return blackMat;
+            }
+
+            // F. MAID BODICE (Body_0: white chest ruffles + black corset in cloth1.png)
+            if (name.includes('body')) {
+                const bodyMat = new THREE.MeshToonMaterial({
+                    map: map,
+                    color: new THREE.Color(0xffffff),
+                    gradientMap: clothToonRamp,
+                    side: THREE.DoubleSide
+                });
+                return bodyMat;
+            }
+
+            // G. ACCENTS: Katyusha flower & ribbons (corset pink laces & back ribbon)
+            if (name.includes('acce') || name.includes('ribbon')) {
+                const accentMat = new THREE.MeshToonMaterial({
+                    map: map,
+                    color: new THREE.Color(0xffffff),
+                    gradientMap: accentToonRamp,
+                    side: THREE.DoubleSide
+                });
+                return accentMat;
+            }
+
+            // Fallback for any other meshes
+            return new THREE.MeshToonMaterial({
+                map: map,
+                color: new THREE.Color(0xffffff),
+                gradientMap: clothToonRamp,
+                side: THREE.DoubleSide
+            });
+        }
+
+        // Clean mesh tear artifacts and detached floating cloth caused by arm reposing
+        function fixStretchedMeshTears(mesh, isUnposed) {
+            if (!mesh || !mesh.geometry) return;
+            mesh.geometry = mesh.geometry.clone();
+            const geo = mesh.geometry;
+            const pos = geo.getAttribute('position');
+            if (!pos) return;
+
+            const indexAttr = geo.getIndex();
+            let collapsedCount = 0;
+
+            if (indexAttr) {
+                const indices = indexAttr.array;
+                for (let i = 0; i < indices.length; i += 3) {
+                    const iA = indices[i];
+                    const iB = indices[i + 1];
+                    const iC = indices[i + 2];
+
+                    const xA = pos.getX(iA), yA = pos.getY(iA), zA = pos.getZ(iA);
+                    const xB = pos.getX(iB), yB = pos.getY(iB), zB = pos.getZ(iB);
+                    const xC = pos.getX(iC), yC = pos.getY(iC), zC = pos.getZ(iC);
+
+                    const dAB = Math.hypot(xA - xB, yA - yB, zA - zB);
+                    const dBC = Math.hypot(xB - xC, yB - yC, zB - zC);
+                    const dCA = Math.hypot(xC - xA, yC - yA, zC - zA);
+                    const maxEdge = Math.max(dAB, dBC, dCA);
+
+                    const midX = (xA + xB + xC) / 3;
+                    const midY = (yA + yB + yC) / 3;
+
+                    let shouldCollapse = false;
+
+                    if (isUnposed) {
+                        // 1. Torn stretched triangles bridging torso and lowered arm (normal cloth edges are < 0.4)
+                        if (maxEdge > 1.05 && (xA < -0.5 || xB < -0.5 || xC < -0.5) && (midY > 8.5 && midY < 18.0)) {
+                            shouldCollapse = true;
+                        }
+
+                        // 2. Detached floating white cloth strip & orphan frills in air outside right arm/chest
+                        // In the unposed model, Rem's right arm is lowered to y <= 11.5.
+                        // Any geometry floating at x < -1.75 and 13.0 < y < 17.5 is disconnected orphan cloth hovering in empty air.
+                        if ((midX < -1.75 || (xA < -1.75 && xB < -1.75) || (xB < -1.75 && xC < -1.75) || (xC < -1.75 && xA < -1.75)) &&
+                            (midY > 13.0 && midY < 17.5)) {
+                            shouldCollapse = true;
+                        }
+                    } else {
+                        if (maxEdge > 2.2) {
+                            shouldCollapse = true;
+                        }
+                    }
+
+                    if (shouldCollapse) {
+                        indices[i] = iA;
+                        indices[i + 1] = iA;
+                        indices[i + 2] = iA;
+                        collapsedCount++;
+                    }
+                }
+                if (collapsedCount > 0) {
+                    indexAttr.needsUpdate = true;
+                    geo.computeVertexNormals();
+                    geo.computeBoundingBox();
+                    geo.computeBoundingSphere();
+                    console.log(`✨ [CleanMesh] Collapsed ${collapsedCount} stretched/floating tear triangles in ${mesh.name || 'mesh'}`);
+                }
+            } else {
+                for (let i = 0; i < pos.count; i += 3) {
+                    const xA = pos.getX(i), yA = pos.getY(i), zA = pos.getZ(i);
+                    const xB = pos.getX(i + 1), yB = pos.getY(i + 1), zB = pos.getZ(i + 1);
+                    const xC = pos.getX(i + 2), yC = pos.getY(i + 2), zC = pos.getZ(i + 2);
+
+                    const dAB = Math.hypot(xA - xB, yA - yB, zA - zB);
+                    const dBC = Math.hypot(xB - xC, yB - yC, zB - zC);
+                    const dCA = Math.hypot(xC - xA, yC - yA, zC - zA);
+                    const maxEdge = Math.max(dAB, dBC, dCA);
+
+                    const midX = (xA + xB + xC) / 3;
+                    const midY = (yA + yB + yC) / 3;
+
+                    let shouldCollapse = false;
+                    if (isUnposed) {
+                        if (maxEdge > 1.05 && (xA < -0.5 || xB < -0.5 || xC < -0.5) && (midY > 8.5 && midY < 18.0)) {
+                            shouldCollapse = true;
+                        }
+                        if ((midX < -1.75 || (xA < -1.75 && xB < -1.75)) && (midY > 13.0 && midY < 17.5)) {
+                            shouldCollapse = true;
+                        }
+                    }
+
+                    if (shouldCollapse) {
+                        pos.setXYZ(i + 1, xA, yA, zA);
+                        pos.setXYZ(i + 2, xA, yA, zA);
+                        collapsedCount++;
+                    }
+                }
+                if (collapsedCount > 0) {
+                    pos.needsUpdate = true;
+                    geo.computeVertexNormals();
+                    geo.computeBoundingBox();
+                    geo.computeBoundingSphere();
+                    console.log(`✨ [CleanMesh] Collapsed ${collapsedCount} stretched/floating tear triangles in non-indexed ${mesh.name || 'mesh'}`);
+                }
+            }
+        }
+
+        function loadRemCharacter() {
+            const loader = new THREE.GLTFLoader();
+            let storedModel = localStorage.getItem('rem_selected_model');
+            if (storedModel && (storedModel.includes('broken') || storedModel.includes('unposed'))) {
+                localStorage.removeItem('rem_selected_model');
+                storedModel = null;
+            }
+            const rawUrl = new URLSearchParams(window.location.search).get('model') || storedModel || 'models/Rem.glb';
+            // Cache buster guarantees browser never uses a stale cached broken model
+            const cacheBuster = 'v=rem_' + Date.now();
+            const modelUrl = rawUrl + (rawUrl.includes('?') ? '&' : '?') + cacheBuster;
+            const isUnposedModel = rawUrl.toLowerCase().includes('unposed');
+            loader.load(modelUrl, (gltf) => {
+                const rawModel = gltf.scene;
+                remModel = new THREE.Group();
+                remModel.name = "RemCompanion";
+
+                // Track mouth expressions for talking lip-sync
+                window.remMouthClosed = null;
+                window.remMouthOpen = null;
+                window.remMouthSmile = null;
+
+                // 1. BUILD ARTICULATED HUMANOID SKELETON
+                const rootBone = new THREE.Bone();
+                rootBone.name = "Root";
+                rootBone.position.set(0, 0, 0);
+
+                const hipsBone = new THREE.Bone();
+                hipsBone.name = "Hips";
+                hipsBone.position.set(0, 8.8, 0);
+                rootBone.add(hipsBone);
+
+                // Left Leg Chain
+                const leftThigh = new THREE.Bone();
+                leftThigh.name = "LeftThigh";
+                leftThigh.position.set(0.65, -0.5, 0);
+                hipsBone.add(leftThigh);
+
+                const leftShin = new THREE.Bone();
+                leftShin.name = "LeftShin";
+                leftShin.position.set(0, -4.2, 0);
+                leftThigh.add(leftShin);
+
+                const leftFoot = new THREE.Bone();
+                leftFoot.name = "LeftFoot";
+                leftFoot.position.set(0, -3.8, 0.4);
+                leftShin.add(leftFoot);
+
+                // Right Leg Chain
+                const rightThigh = new THREE.Bone();
+                rightThigh.name = "RightThigh";
+                rightThigh.position.set(-0.65, -0.5, 0);
+                hipsBone.add(rightThigh);
+
+                const rightShin = new THREE.Bone();
+                rightShin.name = "RightShin";
+                rightShin.position.set(0, -4.2, 0);
+                rightThigh.add(rightShin);
+
+                const rightFoot = new THREE.Bone();
+                rightFoot.name = "RightFoot";
+                rightFoot.position.set(0, -3.8, 0.4);
+                rightShin.add(rightFoot);
+
+                // Spine & Torso Chain
+                const spineBone = new THREE.Bone();
+                spineBone.name = "Spine";
+                spineBone.position.set(0, 2.5, 0);
+                hipsBone.add(spineBone);
+
+                const chestBone = new THREE.Bone();
+                chestBone.name = "Chest";
+                chestBone.position.set(0, 3.2, 0);
+                spineBone.add(chestBone);
+
+                const neckBone = new THREE.Bone();
+                neckBone.name = "Neck";
+                neckBone.position.set(0, 2.2, 0);
+                chestBone.add(neckBone);
+
+                const headBone = new THREE.Bone();
+                headBone.name = "Head";
+                headBone.position.set(0, 1.2, 0);
+                neckBone.add(headBone);
+
+                // Arm Shoulders
+                const leftShoulder = new THREE.Bone();
+                leftShoulder.name = "LeftShoulder";
+                leftShoulder.position.set(1.8, 1.2, 0);
+                chestBone.add(leftShoulder);
+
+                const rightShoulder = new THREE.Bone();
+                rightShoulder.name = "RightShoulder";
+                rightShoulder.position.set(-1.8, 1.2, 0);
+                chestBone.add(rightShoulder);
+
+                const bones = [
+                    rootBone, hipsBone,
+                    leftThigh, leftShin, leftFoot,
+                    rightThigh, rightShin, rightFoot,
+                    spineBone, chestBone, neckBone, headBone,
+                    leftShoulder, rightShoulder
+                ];
+                const skeleton = new THREE.Skeleton(bones);
+
+                window.remJoints = {
+                    rootBone, hipsBone,
+                    leftThigh, leftShin, leftFoot,
+                    rightThigh, rightShin, rightFoot,
+                    spineBone, chestBone, neckBone, headBone,
+                    leftShoulder, rightShoulder
+                };
+
+                // 2. BIND MESHES: GPU SKINNING FOR LEGS + HEAD GAZE GROUP + AUTHENTIC MAID DRESS
+                const NECK_PIVOT_Y = 17.2;
+                const headGroup = new THREE.Group();
+                headGroup.name = "RemHeadGroup";
+                headGroup.position.set(0, NECK_PIVOT_Y, 0);
+                remModel.add(headGroup);
+                window.remHeadGroup = headGroup;
+
+                const HEAD_MESH_NAMES = [
+                    'backhair', 'face', 'transparent', 'mouth1', 'mouth2', 'mouth3',
+                    'whiteeye', 'eye', 'nose', 'hair', 'acce'
+                ];
+
+                window.windMeshes = [];
+
+                rawModel.traverse((child) => {
+                    if (child.isMesh) {
+                        const name = (child.name || '').toLowerCase();
+                        const matName = (child.material && child.material.name ? child.material.name : '').toLowerCase();
+
+                        // Hide inverted-hull edge outline mesh and empty transparent plane
+                        if (name.includes('edge') || matName.includes('edge') || name.includes('transparent') || matName.includes('transparent')) {
+                            child.visible = false;
+                            return;
+                        }
+
+                        if (child.material) {
+                            child.material.side = THREE.DoubleSide;
+                            if (child.material.map) {
+                                child.material.map.encoding = THREE.sRGBEncoding;
+                            }
+                        }
+
+                        const isHead = HEAD_MESH_NAMES.some(h => name.includes(h));
+
+                        if (isHead) {
+                            // Mouth1 is an opaque blank skin polygon from PMX conversion that masks the mouth/nose - ignore it!
+                            if (name.includes('mouth1')) {
+                                return;
+                            }
+
+                            // Mount authentic face, eyes, hair, and katyusha to headGroup for anatomical gaze tracking
+                            const clone = child.clone();
+                            clone.material = createAnimeMaterial(child.material, name);
+                            clone.position.y -= NECK_PIVOT_Y;
+
+                            // Anime head shadow hierarchy:
+                            // Face, eyes, nose, and mouth do not cast or receive planar self-shadows to ensure flawless porcelain skin
+                            if (name.includes('face')) {
+                                clone.castShadow = false;
+                                clone.receiveShadow = false;
+                            } else if (name.includes('whiteeye')) {
+                                clone.castShadow = false;
+                                clone.receiveShadow = false;
+                                clone.renderOrder = 1;
+                            } else if (name.includes('eye')) {
+                                clone.castShadow = false;
+                                clone.receiveShadow = false;
+                                clone.renderOrder = 2;
+                            } else if (name.includes('nose')) {
+                                clone.castShadow = false;
+                                clone.receiveShadow = false;
+                            } else if (name.includes('mouth3')) {
+                                clone.castShadow = false;
+                                clone.receiveShadow = false;
+                                clone.visible = true; // Cute closed anime smile by default when idle!
+                                window.remMouthSmile = clone;
+                            } else if (name.includes('mouth2')) {
+                                clone.castShadow = false;
+                                clone.receiveShadow = false;
+                                clone.visible = false; // Open talking mouth
+                                window.remMouthOpen = clone;
+                            } else {
+                                // Hair, BackHair, Acce
+                                clone.castShadow = true;
+                                clone.receiveShadow = true;
+                            }
+
+                            headGroup.add(clone);
+                        } else {
+                            // Authentic maid dress, apron, corset ribbons, cuffs, collar, and complete legs & shoes
+                            const clone = child.clone();
+                            fixStretchedMeshTears(clone, isUnposedModel);
+                            clone.material = createAnimeMaterial(child.material, name);
+                            clone.castShadow = true;
+                            clone.receiveShadow = true;
+                            remModel.add(clone);
+                        }
+                    }
+                });
+
+                // Calculate bounding box and scale to canonical Rem height (1.54m)
+                const box = new THREE.Box3().setFromObject(remModel);
+                const size = new THREE.Vector3();
+                box.getSize(size);
+                const targetHeight = 1.54;
+                const scaleFactor = targetHeight / (size.y || 21.05);
+                remModel.scale.multiplyScalar(scaleFactor);
+
+                // Ground feet firmly on stone balcony floor (y=0) and center
+                const newBox = new THREE.Box3().setFromObject(remModel);
+                remModel.position.y = -newBox.min.y;
+                remModel.position.x = -(newBox.min.x + newBox.max.x) / 2;
+                remModel.position.z = -(newBox.min.z + newBox.max.z) / 2;
+
+                window.remBaseY = remModel.position.y;
+                window.remBaseX = remModel.position.x;
+                window.remBaseZ = remModel.position.z;
+                window.remBaseRotY = 0;
+
+                scene.add(remModel);
+
+                // Balanced companion framing: perfectly framing Rem's full authentic body, hands, and feet
+                camera.position.set(0, 1.20, 2.5);
+                controls.target.set(0, 0.95, 0);
+                controls.update();
+
+                // Check if a starting waypoint was requested in URL
+                const urlParams = new URLSearchParams(window.location.search);
+                const initSpot = urlParams.get('spot');
+                if (initSpot && RemNav.waypoints[initSpot]) {
+                    RemNav.walkToWaypoint(initSpot);
+                }
+
+                console.log("🌸 Authentic Rem 3D Model loaded & positioned on Lugnica Balcony!");
+            }, undefined, (err) => {
+                console.warn("Could not load models/Rem.glb:", err);
+            });
+        }
+
+        // =====================================================================
+        // 5. ATMOSPHERIC PARTICLES, SAKURA PETALS & FLYING WHITE DOVES
+        // =====================================================================
+        function setupDovesAndParticles() {
+            // White Doves
+            const doveMat = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide });
+            for (let i = 0; i < 18; i++) {
+                const dove = new THREE.Group();
+                const leftWing = new THREE.Mesh(new THREE.BufferGeometry(), doveMat);
+                const rightWing = new THREE.Mesh(new THREE.BufferGeometry(), doveMat);
+                const wVerts = new Float32Array([0, 0, 0, -0.35, 0.12, -0.2, 0, 0, -0.45]);
+                leftWing.geometry.setAttribute('position', new THREE.BufferAttribute(wVerts, 3));
+                const rVerts = new Float32Array([0, 0, 0, 0.35, 0.12, -0.2, 0, 0, -0.45]);
+                rightWing.geometry.setAttribute('position', new THREE.BufferAttribute(rVerts, 3));
+
+                dove.add(leftWing);
+                dove.add(rightWing);
+                dove.leftWing = leftWing;
+                dove.rightWing = rightWing;
+
+                dove.position.set(
+                    (Math.random() - 0.5) * 45,
+                    5 + Math.random() * 12,
+                    -12 - Math.random() * 25
+                );
+                dove.speed = 0.07 + Math.random() * 0.05;
+                doves.push(dove);
+                scene.add(dove);
+            }
+
+            // Drifting Anime Sakura Petals
+            const texLoader = new THREE.TextureLoader();
+            const petalTex = texLoader.load('textures/sakura_petal.png');
+            petalTex.encoding = THREE.sRGBEncoding;
+            const petalGeo = new THREE.PlaneGeometry(0.09, 0.13);
+            const petalMat = new THREE.MeshBasicMaterial({
+                map: petalTex,
+                transparent: true,
+                alphaTest: 0.1,
+                side: THREE.DoubleSide
+            });
+
+            for (let i = 0; i < 60; i++) {
+                const petal = new THREE.Mesh(petalGeo, petalMat);
+                petal.position.set(
+                    (Math.random() - 0.5) * 12,
+                    0.2 + Math.random() * 4.5,
+                    (Math.random() - 0.5) * 12
+                );
+                petal.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
+                petal.speedY = 0.007 + Math.random() * 0.012;
+                petal.speedX = (Math.random() - 0.5) * 0.007;
+                petal.rotSpeed = (Math.random() - 0.5) * 0.035;
+                sakuraPetals.push(petal);
+                scene.add(petal);
+            }
+
+            // Sparkling Mana Light Motes
+            const pCount = 120;
+            const pGeo = new THREE.BufferGeometry();
+            const pPos = new Float32Array(pCount * 3);
+            for (let i = 0; i < pCount * 3; i += 3) {
+                pPos[i] = (Math.random() - 0.5) * 14;
+                pPos[i + 1] = 0.3 + Math.random() * 4.0;
+                pPos[i + 2] = (Math.random() - 0.5) * 14;
+            }
+            pGeo.setAttribute('position', new THREE.BufferAttribute(pPos, 3));
+            const pMat = new THREE.PointsMaterial({
+                color: 0x93e5fd,
+                size: 0.045,
+                transparent: true,
+                opacity: 0.85,
+                blending: THREE.AdditiveBlending
+            });
+            manaParticles = new THREE.Points(pGeo, pMat);
+            scene.add(manaParticles);
+        }
+
+        // =====================================================================
+        // 6. ANIMATION LOOP
+        // =====================================================================
+        function animate() {
+            requestAnimationFrame(animate);
+            const time = clock.getElapsedTime();
+
+            // Update Rem's walking locomotion, terrace navigation, and posture
+            RemNav.update(time);
+
+            // Dynamic lip sync speech animation when speaking!
+            if (remModel && State.isSpeaking && window.remMouthSmile && window.remMouthOpen) {
+                const lipSync = Math.sin(time * 16.0);
+                window.remMouthSmile.visible = (lipSync <= 0);
+                window.remMouthOpen.visible = (lipSync > 0);
+            } else {
+                if (window.remMouthSmile) window.remMouthSmile.visible = true;
+                if (window.remMouthOpen) window.remMouthOpen.visible = false;
+            }
+
+            // Doves flying in graceful arcs
+            doves.forEach((dove) => {
+                dove.position.x += Math.sin(time + dove.speed) * 0.02;
+                dove.position.y += Math.sin(time * 3 + dove.speed) * 0.01;
+                dove.position.z += dove.speed;
+                if (dove.position.z > 22) dove.position.z = -35;
+
+                const flap = Math.sin(time * 18) * 0.5;
+                dove.leftWing.rotation.z = flap;
+                dove.rightWing.rotation.z = -flap;
+            });
+
+            // Sakura petals fluttering gently in terrace breeze
+            sakuraPetals.forEach(p => {
+                p.position.y -= p.speedY;
+                p.position.x += Math.sin(time + p.position.z) * 0.005 + p.speedX;
+                p.position.z += 0.004;
+                p.rotation.x += p.rotSpeed;
+                p.rotation.y += p.rotSpeed * 0.8;
+                p.rotation.z += p.rotSpeed * 1.2;
+
+                if (p.position.y < 0.05) {
+                    p.position.y = 4.0 + Math.random() * 1.5;
+                    p.position.x = (Math.random() - 0.5) * 12;
+                    p.position.z = -5 + (Math.random() - 0.5) * 8;
+                }
+            });
+
+            // Mana particles drift
+            if (manaParticles) {
+                manaParticles.rotation.y = time * 0.03;
+            }
+
+            // Subtle god ray pulse
+            if (godRays) {
+                godRays.material.opacity = 0.14 + Math.sin(time * 0.8) * 0.04;
+            }
+
+            // Animate tap-to-walk ripple markers
+            for (let i = tapRipples.length - 1; i >= 0; i--) {
+                const rip = tapRipples[i];
+                rip.scale += 0.04;
+                rip.opacity -= 0.025;
+                rip.group.scale.set(rip.scale, 1, rip.scale);
+                rip.ring.material.opacity = Math.max(0, rip.opacity);
+                rip.dot.material.opacity = Math.max(0, rip.opacity);
+                if (rip.opacity <= 0) {
+                    scene.remove(rip.group);
+                    rip.ring.geometry.dispose();
+                    rip.ring.material.dispose();
+                    rip.dot.geometry.dispose();
+                    rip.dot.material.dispose();
+                    tapRipples.splice(i, 1);
+                }
+            }
+
+            if (remModel && (!renderer.xr || !renderer.xr.isPresenting)) {
+                const targetLook = new THREE.Vector3(remModel.position.x, 1.10, remModel.position.z);
+                controls.target.lerp(targetLook, 0.05);
+            }
+            controls.update();
+
+            // Render through Cinematic Post-Processing Pipeline (UnrealBloomPass)
+            // When in AR mode, render directly with renderer to preserve transparent alpha background for camera feed!
+            if (composer && !isARMode && (!renderer.xr || !renderer.xr.isPresenting)) {
+                composer.render();
+            } else {
+                renderer.render(scene, camera);
+            }
+        }
+
+        function spawnTapMarker(x, y, z) {
+            const group = new THREE.Group();
+            group.position.set(x, y + 0.02, z);
+
+            const ringGeo = new THREE.RingGeometry(0.08, 0.24, 32);
+            const ringMat = new THREE.MeshBasicMaterial({
+                color: 0x38bdf8,
+                side: THREE.DoubleSide,
+                transparent: true,
+                opacity: 0.95
+            });
+            const ring = new THREE.Mesh(ringGeo, ringMat);
+            ring.rotation.x = -Math.PI / 2;
+            group.add(ring);
+
+            const dotGeo = new THREE.CircleGeometry(0.08, 16);
+            const dotMat = new THREE.MeshBasicMaterial({
+                color: 0xffffff,
+                side: THREE.DoubleSide,
+                transparent: true,
+                opacity: 0.9
+            });
+            const dot = new THREE.Mesh(dotGeo, dotMat);
+            dot.rotation.x = -Math.PI / 2;
+            group.add(dot);
+
+            scene.add(group);
+            tapRipples.push({
+                group: group,
+                ring: ring,
+                dot: dot,
+                scale: 1.0,
+                opacity: 0.95
+            });
+        }
+
+        function handleTerraceTap(clientX, clientY) {
+            if (!camera) return;
+            const raycaster = new THREE.Raycaster();
+            const mouse = new THREE.Vector2();
+            mouse.x = (clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(clientY / window.innerHeight) * 2 + 1;
+            raycaster.setFromCamera(mouse, camera);
+
+            if (isARMode) {
+                // In Pokemon GO AR Mode: Tap anywhere in the camera view to place Rem on that surface!
+                const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+                const hitPoint = new THREE.Vector3();
+                if (raycaster.ray.intersectPlane(groundPlane, hitPoint)) {
+                    if (remModel) {
+                        remModel.position.x = hitPoint.x;
+                        remModel.position.z = hitPoint.z;
+                        // Orient Rem towards the user/camera
+                        const dx = camera.position.x - remModel.position.x;
+                        const dz = camera.position.z - remModel.position.z;
+                        remModel.rotation.y = Math.atan2(dx, dz);
+                    }
+                    spawnTapMarker(hitPoint.x, 0.01, hitPoint.z);
+                    const arPhrases = [
+                        "I'm right here with you in your room!",
+                        "Rem is watching over you from right here.",
+                        "Subaru-kun... I mean, Harshit! Rem is standing right here beside you!"
+                    ];
+                    const chosen = arPhrases[Math.floor(Math.random() * arPhrases.length)];
+                    setRemSubtitle(chosen, "📷 Pokemon GO AR");
+                    speakWithFishAudio(chosen);
+                }
+                return;
+            }
+
+            if (!terraceFloor) return;
+            const hits = raycaster.intersectObject(terraceFloor);
+            if (hits.length > 0) {
+                const pt = hits[0].point;
+                const rad = Math.hypot(pt.x, pt.z);
+                if (rad < 7.6) {
+                    RemNav.targetX = pt.x;
+                    RemNav.targetZ = pt.z;
+                    RemNav.state = 'WALKING';
+                    RemNav.targetWalkWeight = 1.0;
+                    spawnTapMarker(pt.x, 0.02, pt.z);
+
+                    if (!State.isSpeaking && Math.random() < 0.25) {
+                        const phrases = [
+                            "Right away, Harshit!",
+                            "Rem is right beside you.",
+                            "Walking with you!"
+                        ];
+                        const phrase = phrases[Math.floor(Math.random() * phrases.length)];
+                        setRemSubtitle(phrase, "🌸 Rem");
+                        speakWithFishAudio(phrase);
+                    }
+                }
+            }
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || (window.innerWidth <= 768);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, isMobile ? 1.5 : 2.0));
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            if (composer) {
+                composer.setSize(window.innerWidth, window.innerHeight);
+            }
+        }
+
+        function setupWebXR() {
+            if ('xr' in navigator) {
+                // VR Support
+                navigator.xr.isSessionSupported('immersive-vr').then((supported) => {
+                    if (supported) {
+                        const btn = document.getElementById('enter-vr-btn');
+                        btn.style.display = 'inline-flex';
+                        btn.onclick = () => {
+                            renderer.xr.enabled = true;
+                            navigator.xr.requestSession('immersive-vr').then((session) => {
+                                renderer.xr.setSession(session);
+                                renderer.setAnimationLoop(animate);
+                            });
+                        };
+                    }
+                });
+
+                // AR Support
+                navigator.xr.isSessionSupported('immersive-ar').then((supported) => {
+                    if (supported) {
+                        const btn = document.getElementById('enter-ar-btn');
+                        btn.style.display = 'inline-flex';
+                        btn.onclick = () => {
+                            renderer.xr.enabled = true;
+                            navigator.xr.requestSession('immersive-ar').then((session) => {
+                                renderer.xr.setSession(session);
+                                renderer.setAnimationLoop(animate);
+                            });
+                        };
+                    }
+                });
+            }
+        }
+
+        // =====================================================================
+        // 6.5. POKEMON GO STYLE AUGMENTED REALITY (CAMERA PASSTHROUGH & AR CONTROLS)
+        // =====================================================================
+        let isARMode = false;
+        let arStream = null;
+        let arScaleMode = 'desk'; // 'desk' (38cm figurine) or 'life' (1.54m real-life)
+        let savedRemTransform = { x: 0, y: 0, z: 0, rotY: 0, scale: 1 };
+        let savedCameraTransform = { x: 0, y: 1.20, z: 2.5, target: null };
+
+        async function enterARMode() {
+            try {
+                const videoEl = document.getElementById('ar-camera-video');
+                const arControlBar = document.getElementById('ar-control-bar');
+                const arToggleBtn = document.getElementById('toggle-ar-btn');
+                const navHint = document.getElementById('nav-hint');
+
+                // 1. Request real-world environment camera (back camera on mobile, webcam on PC)
+                const constraints = {
+                    video: {
+                        facingMode: { ideal: 'environment' },
+                        width: { ideal: 1920 },
+                        height: { ideal: 1080 }
+                    },
+                    audio: false
+                };
+
+                arStream = await navigator.mediaDevices.getUserMedia(constraints);
+                videoEl.srcObject = arStream;
+                await videoEl.play();
+                videoEl.style.display = 'block';
+
+                // 2. Save previous transforms for clean restore
+                if (remModel) {
+                    savedRemTransform = {
+                        x: remModel.position.x,
+                        y: remModel.position.y,
+                        z: remModel.position.z,
+                        rotY: remModel.rotation.y,
+                        scale: remModel.scale.x
+                    };
+                }
+                savedCameraTransform = {
+                    x: camera.position.x,
+                    y: camera.position.y,
+                    z: camera.position.z,
+                    target: controls.target.clone()
+                };
+
+                // 3. Switch 3D scene from Lugnica terrace to Transparent AR Passthrough
+                scene.background = null;
+                renderer.setClearColor(0x000000, 0);
+
+                if (window.lugnicaTerraceGroup) window.lugnicaTerraceGroup.visible = false;
+                if (window.arShadowPlane) window.arShadowPlane.visible = true;
+
+                // Hide terrace atmospheric particles
+                if (manaParticles) manaParticles.visible = false;
+                doves.forEach(d => d.visible = false);
+                sakuraPetals.forEach(p => p.visible = false);
+
+                isARMode = true;
+
+                // 4. Position Rem in front of camera
+                // Default to Desk Figurine scale (38cm) - perfect for sitting on desk/table
+                arScaleMode = 'desk';
+                applyARScale();
+
+                // 5. Update UI controls
+                if (arToggleBtn) {
+                    arToggleBtn.classList.add('active');
+                    arToggleBtn.innerHTML = '📷 AR: ON';
+                }
+                if (arControlBar) arControlBar.style.display = 'flex';
+                const arScaleBtn = document.getElementById('ar-scale-btn');
+                if (arScaleBtn) arScaleBtn.innerText = "🧸 Desk Figurine (38cm)";
+
+                if (navHint) {
+                    navHint.innerHTML = "📷 Pokemon GO AR Mode: Tap any real surface to place Rem • Tap 📸 for Photo";
+                }
+
+                const bubble = document.getElementById('speech-bubble');
+                if (bubble) bubble.style.top = '132px';
+
+                setRemSubtitle("Rem has entered your real world! You can place me on your desk or floor.", "📷 AR Mode Active");
+                speakWithFishAudio("Rem has entered your world, Harshit! I am standing right here beside you.");
+
+            } catch (err) {
+                console.error("Failed to start AR camera:", err);
+                alert("Could not access camera for AR mode. Please make sure camera permissions are allowed in your browser! Error: " + err.message);
+            }
+        }
+
+        function exitARMode() {
+            if (!isARMode) return;
+            const videoEl = document.getElementById('ar-camera-video');
+            const arControlBar = document.getElementById('ar-control-bar');
+            const arToggleBtn = document.getElementById('toggle-ar-btn');
+
+            // 1. Stop camera stream tracks
+            if (arStream) {
+                arStream.getTracks().forEach(track => track.stop());
+                arStream = null;
+            }
+            if (videoEl) {
+                videoEl.srcObject = null;
+                videoEl.style.display = 'none';
+            }
+
+            // 2. Restore 3D environment & skybox
+            if (window.lugnicaSkyPano) {
+                scene.background = window.lugnicaSkyPano;
+            }
+            if (window.lugnicaTerraceGroup) window.lugnicaTerraceGroup.visible = true;
+            if (window.arShadowPlane) window.arShadowPlane.visible = false;
+
+            // Restore particles
+            if (manaParticles) manaParticles.visible = true;
+            doves.forEach(d => d.visible = true);
+            sakuraPetals.forEach(p => p.visible = true);
+
+            // 3. Restore Rem transform & scale
+            if (remModel) {
+                remModel.scale.set(savedRemTransform.scale, savedRemTransform.scale, savedRemTransform.scale);
+                remModel.position.set(savedRemTransform.x, savedRemTransform.y, savedRemTransform.z);
+                remModel.rotation.y = savedRemTransform.rotY;
+            }
+
+            // Restore camera
+            if (savedCameraTransform.target) {
+                camera.position.set(savedCameraTransform.x, savedCameraTransform.y, savedCameraTransform.z);
+                controls.target.copy(savedCameraTransform.target);
+                controls.update();
+            }
+
+            isARMode = false;
+
+            // 4. Reset UI
+            if (arToggleBtn) {
+                arToggleBtn.classList.remove('active');
+                arToggleBtn.innerHTML = '📷 AR Mode';
+            }
+            if (arControlBar) arControlBar.style.display = 'none';
+            const bubble = document.getElementById('speech-bubble');
+            if (bubble) bubble.style.top = '';
+            updateNavHint();
+
+            setRemSubtitle("Returned to the Lugnica Lookout Terrace.", "🌸 Rem");
+        }
+
+        function applyARScale() {
+            if (!remModel) return;
+            const baseScale = savedRemTransform.scale || 0.073;
+
+            if (arScaleMode === 'desk') {
+                // 38cm desk figurine scale (approx 0.25x life size)
+                const deskScale = baseScale * 0.25;
+                remModel.scale.set(deskScale, deskScale, deskScale);
+                // Position 0.75m in front of camera
+                remModel.position.set(0, 0, -0.75);
+                remModel.rotation.y = 0;
+                camera.position.set(0, 0.35, 0.45);
+                controls.target.set(0, 0.12, -0.75);
+                controls.update();
+            } else {
+                // 1.54m Life-Size companion scale
+                remModel.scale.set(baseScale, baseScale, baseScale);
+                // Position 2.2m in front of camera on real-world floor
+                remModel.position.set(0, 0, -2.2);
+                remModel.rotation.y = 0;
+                camera.position.set(0, 1.25, 0.6);
+                controls.target.set(0, 0.85, -2.2);
+                controls.update();
+            }
+        }
+
+        function toggleARScale() {
+            if (!isARMode) return;
+            const btn = document.getElementById('ar-scale-btn');
+            if (arScaleMode === 'desk') {
+                arScaleMode = 'life';
+                if (btn) btn.innerText = "🧍‍♀️ Life-Size (1.54m)";
+                setRemSubtitle("Switched to Life-Size Rem! Place me standing on the floor.", "📷 AR Mode");
+            } else {
+                arScaleMode = 'desk';
+                if (btn) btn.innerText = "🧸 Desk Figurine (38cm)";
+                setRemSubtitle("Switched to Desk Figurine Rem! Place me on your table or desk.", "📷 AR Mode");
+            }
+            applyARScale();
+        }
+
+        // Pokemon GO AR Snapshot Photo Capture (composites camera feed + 3D Rem + watermark)
+        function takeARSnapshot() {
+            try {
+                const videoEl = document.getElementById('ar-camera-video');
+                const canvas = document.createElement('canvas');
+                const w = window.innerWidth;
+                const h = window.innerHeight;
+                canvas.width = w;
+                canvas.height = h;
+                const ctx = canvas.getContext('2d');
+
+                // 1. Draw real-world video camera frame
+                if (videoEl && videoEl.videoWidth > 0) {
+                    const vRatio = videoEl.videoWidth / videoEl.videoHeight;
+                    const cRatio = w / h;
+                    let sx = 0, sy = 0, sWidth = videoEl.videoWidth, sHeight = videoEl.videoHeight;
+                    if (vRatio > cRatio) {
+                        sWidth = videoEl.videoHeight * cRatio;
+                        sx = (videoEl.videoWidth - sWidth) / 2;
+                    } else {
+                        sHeight = videoEl.videoWidth / cRatio;
+                        sy = (videoEl.videoHeight - sHeight) / 2;
+                    }
+                    ctx.drawImage(videoEl, sx, sy, sWidth, sHeight, 0, 0, w, h);
+                } else {
+                    ctx.fillStyle = '#1e293b';
+                    ctx.fillRect(0, 0, w, h);
+                }
+
+                // 2. Render 3D Rem directly and draw onto canvas
+                renderer.render(scene, camera);
+                ctx.drawImage(renderer.domElement, 0, 0, w, h);
+
+                // 3. Elegant Anime Watermark
+                ctx.save();
+                ctx.fillStyle = 'rgba(15, 23, 42, 0.7)';
+                if (ctx.roundRect) {
+                    ctx.roundRect(16, h - 52, 340, 36, 12);
+                } else {
+                    ctx.fillRect(16, h - 52, 340, 36);
+                }
+                ctx.fill();
+                ctx.font = 'bold 15px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+                ctx.fillStyle = '#38bdf8';
+                ctx.fillText('🌸 Project Remniscence', 28, h - 29);
+                ctx.font = '13px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+                ctx.fillStyle = '#cbd5e1';
+                ctx.fillText('• Pokemon GO AR Snapshot', 200, h - 29);
+                ctx.restore();
+
+                // 4. White Camera Flash effect
+                const flashEl = document.createElement('div');
+                flashEl.style.position = 'fixed';
+                flashEl.style.top = '0';
+                flashEl.style.left = '0';
+                flashEl.style.width = '100vw';
+                flashEl.style.height = '100vh';
+                flashEl.style.backgroundColor = '#ffffff';
+                flashEl.style.opacity = '0.9';
+                flashEl.style.zIndex = '9999';
+                flashEl.style.transition = 'opacity 0.4s ease-out';
+                flashEl.style.pointerEvents = 'none';
+                document.body.appendChild(flashEl);
+                setTimeout(() => {
+                    flashEl.style.opacity = '0';
+                    setTimeout(() => flashEl.remove(), 400);
+                }, 50);
+
+                // 5. Download the AR snapshot photo
+                const link = document.createElement('a');
+                link.download = `Rem_AR_Snapshot_${Date.now()}.png`;
+                link.href = canvas.toDataURL('image/png');
+                link.click();
+
+                setRemSubtitle("📸 Pokemon GO Snapshot saved to your downloads!", "🌸 Snapshot Taken");
+            } catch (snapErr) {
+                console.error("AR Snapshot error:", snapErr);
+                alert("Failed to capture snapshot: " + snapErr.message);
+            }
+        }
+
+        function setupARMode() {
+            const toggleBtn = document.getElementById('toggle-ar-btn');
+            if (toggleBtn) {
+                toggleBtn.onclick = () => {
+                    if (!isARMode) {
+                        enterARMode();
+                    } else {
+                        exitARMode();
+                    }
+                };
+            }
+
+            const scaleBtn = document.getElementById('ar-scale-btn');
+            if (scaleBtn) {
+                scaleBtn.onclick = toggleARScale;
+            }
+
+            const snapBtn = document.getElementById('ar-snap-btn');
+            if (snapBtn) {
+                snapBtn.onclick = takeARSnapshot;
+            }
+
+            const exitBtn = document.getElementById('ar-exit-btn');
+            if (exitBtn) {
+                exitBtn.onclick = exitARMode;
+            }
+        }
+
+        // =====================================================================
+        // 7. LIVE CONVERSATIONAL AI & VOICE INTERACTION (GEMINI + FISH AUDIO)
+        // =====================================================================
+        const speechBubble = document.getElementById('speech-bubble');
+        const speechStatus = document.getElementById('speech-status');
+        const speechText = document.getElementById('speech-text');
+        const chatInput = document.getElementById('chat-input');
+        const sendBtn = document.getElementById('send-btn');
+        const voiceBtn = document.getElementById('voice-btn');
+        const chatDrawer = document.getElementById('chat-drawer');
+        const chatHistory = document.getElementById('chat-history');
+
+        let typingTimeout = null;
+
+        function setRemSubtitle(text, status = "🌸 Rem says") {
+            speechStatus.innerText = status;
+            speechBubble.style.opacity = '1';
+
+            if (typingTimeout) clearTimeout(typingTimeout);
+            speechText.innerText = "";
+            let i = 0;
+            function typeNext() {
+                if (i < text.length) {
+                    speechText.innerText += text[i];
+                    i++;
+                    typingTimeout = setTimeout(typeNext, 25);
+                }
+            }
+            typeNext();
+        }
+
+        function appendToHistory(sender, message, isUser) {
+            const div = document.createElement('div');
+            div.className = `msg-bubble ${isUser ? 'msg-user' : 'msg-rem'}`;
+            div.innerHTML = `<b>${isUser ? 'You' : '🌸 Rem'}:</b> ${message}`;
+            chatHistory.appendChild(div);
+            chatHistory.scrollTop = chatHistory.scrollHeight;
+
+            State.history.push({ role: isUser ? 'user' : 'model', parts: [{ text: message }] });
+            if (State.history.length > 12) State.history.shift();
+        }
+
+        async function talkToGemini(userMessage) {
+            // Companion terrace locomotion intent detection
+            const lowerMsg = (userMessage || '').toLowerCase();
+            if (lowerMsg.includes('view') || lowerMsg.includes('balcony') || lowerMsg.includes('lookout') || lowerMsg.includes('overlook') || lowerMsg.includes('scenery')) {
+                RemNav.walkToWaypoint('balconyCenter');
+            } else if (lowerMsg.includes('pillar') || lowerMsg.includes('ruin') || lowerMsg.includes('column')) {
+                RemNav.walkToWaypoint('subaruPillar');
+            } else if (lowerMsg.includes('left') || lowerMsg.includes('walk over there')) {
+                RemNav.walkToWaypoint('overlookLeft');
+            } else if (lowerMsg.includes('walk with me') || lowerMsg.includes('come') || lowerMsg.includes('here') || lowerMsg.includes('stand with me') || lowerMsg.includes('beside')) {
+                RemNav.walkToWaypoint('companion');
+            }
+
+            if (!State.geminiApiKey) {
+                let presetReply = null;
+                if (lowerMsg.includes('walk with me') || lowerMsg.includes('stand right here')) {
+                    presetReply = "I will gladly walk with you, Harshit! Wherever you go, Rem will always stay right beside you.";
+                } else if (lowerMsg.includes('balcony') || lowerMsg.includes('balustrade') || lowerMsg.includes('view') || lowerMsg.includes('overlook')) {
+                    presetReply = "The view across the royal capital of Lugnica is so beautiful... Standing here with you makes Rem very happy.";
+                } else if (lowerMsg.includes('pillar') || lowerMsg.includes('ruin')) {
+                    presetReply = "This ruined pillar... From here, let us start from one... No, from zero!";
+                } else if (lowerMsg.includes('start from zero') || lowerMsg.includes('from zero')) {
+                    presetReply = "Giving up is easy, Harshit, but it doesn't suit you at all. Let's start over from zero!";
+                } else if (lowerMsg.includes('coding') || lowerMsg.includes('cheer')) {
+                    presetReply = "Harshit, you've been working so hard! Rem believes in you more than anyone in the whole world. You can do this!";
+                } else if (lowerMsg.includes('posture') || lowerMsg.includes('stretch')) {
+                    presetReply = "Harshit, please sit up straight and relax your shoulders. Rem cares deeply about your health!";
+                } else if (lowerMsg.includes('water') || lowerMsg.includes('drink')) {
+                    presetReply = "Please remember to drink some water, Harshit! Staying refreshed is very important.";
+                }
+
+                if (presetReply) {
+                    appendToHistory("You", userMessage, true);
+                    appendToHistory("Rem", presetReply, false);
+                    setRemSubtitle(presetReply, "🌸 Rem says");
+                    speakWithFishAudio(presetReply);
+                    return;
+                }
+
+                setRemSubtitle("Please click Settings (⚙️) above and paste your Google Gemini API key to begin open chat conversation.", "⚠️ API Key Needed");
+                document.getElementById('settings-modal').classList.add('active');
+                return;
+            }
+
+            speechStatus.innerText = "💭 Rem is thinking...";
+            appendToHistory("You", userMessage, true);
+
+            try {
+                const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${State.geminiApiKey.trim()}`;
+                
+                // Ensure contents strictly alternate roles and start with user turn
+                const rawHistory = State.history.slice(-8);
+                const contents = [];
+                for (const item of rawHistory) {
+                    if (contents.length === 0) {
+                        if (item.role === 'user') contents.push(item);
+                    } else {
+                        const lastRole = contents[contents.length - 1].role;
+                        if (item.role !== lastRole) {
+                            contents.push(item);
+                        }
+                    }
+                }
+                if (contents.length === 0) {
+                    contents.push({ role: 'user', parts: [{ text: userMessage }] });
+                }
+
+                const payload = {
+                    system_instruction: { parts: [{ text: RemPersona }] },
+                    contents: contents,
+                    generationConfig: {
+                        temperature: 0.75,
+                        maxOutputTokens: 120
+                    }
+                };
+
+                const res = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!res.ok) {
+                    const err = await res.text();
+                    throw new Error(`Gemini API Error ${res.status}: ${err}`);
+                }
+
+                const data = await res.json();
+                let reply = data.candidates?.[0]?.content?.parts?.[0]?.text || "I'm right here with you, Harshit.";
+                reply = reply.replace(/\*.*?\*/g, '').replace(/[\*#`]/g, '').trim();
+
+                appendToHistory("Rem", reply, false);
+                setRemSubtitle(reply, "🌸 Rem is speaking...");
+
+                await speakWithFishAudio(reply);
+
+            } catch (err) {
+                console.error("Gemini Error:", err);
+                if (State.history.length > 0 && State.history[State.history.length - 1].role === 'user') {
+                    State.history.pop();
+                }
+                setRemSubtitle("I hear you, Harshit! Even when the network wavers, Rem's devotion never falters.", "🌸 Rem");
+            }
+        }
+
+        function speakFallback(text) {
+            if ('speechSynthesis' in window) {
+                try {
+                    window.speechSynthesis.cancel();
+                    const utter = new SpeechSynthesisUtterance(text);
+                    const voices = window.speechSynthesis.getVoices();
+                    const preferred = voices.find(v => v.lang.startsWith('en') && (v.name.includes('Female') || v.name.includes('Google') || v.name.includes('Natural') || v.name.includes('Samantha') || v.name.includes('Karen') || v.name.includes('Zira'))) ||
+                                      voices.find(v => v.lang.startsWith('en')) || voices[0];
+                    if (preferred) utter.voice = preferred;
+                    utter.rate = 0.96;
+                    utter.pitch = 1.12;
+                    State.isSpeaking = true;
+                    utter.onstart = () => { State.isSpeaking = true; };
+                    utter.onend = () => {
+                        State.isSpeaking = false;
+                        speechStatus.innerText = "🌸 Rem is listening";
+                    };
+                    utter.onerror = () => {
+                        State.isSpeaking = false;
+                        speechStatus.innerText = "🌸 Rem is listening";
+                    };
+                    window.speechSynthesis.speak(utter);
+                } catch (e) {
+                    console.warn("speechSynthesis error:", e);
+                    triggerVisualSpeaking(text);
+                }
+            } else {
+                triggerVisualSpeaking(text);
+            }
+        }
+
+        function triggerVisualSpeaking(text) {
+            State.isSpeaking = true;
+            const talkDuration = Math.min(Math.max(text.length * 60, 1500), 7000);
+            setTimeout(() => {
+                State.isSpeaking = false;
+                speechStatus.innerText = "🌸 Rem is listening";
+            }, talkDuration);
+        }
+
+        async function speakWithFishAudio(text) {
+            if (!State.fishAudioApiKey) {
+                speakFallback(text);
+                return;
+            }
+
+            try {
+                speechStatus.innerText = "🌸 Generating Voice...";
+                const res = await fetch('https://api.fish.audio/v1/tts', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${State.fishAudioApiKey.trim()}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        text: text,
+                        reference_id: State.fishAudioModelId ? State.fishAudioModelId.trim() : undefined,
+                        format: 'wav',
+                        speed: 1.0
+                    })
+                });
+
+                if (!res.ok) throw new Error(`Fish Audio Error: ${res.status}`);
+
+                const blob = await res.blob();
+                const audioUrl = URL.createObjectURL(blob);
+                const audio = new Audio(audioUrl);
+                audio.play();
+
+                State.isSpeaking = true;
+                audio.onended = () => {
+                    State.isSpeaking = false;
+                    speechStatus.innerText = "🌸 Rem is listening";
+                };
+            } catch (err) {
+                console.warn("Fish Audio TTS Error, falling back to speech synthesis:", err);
+                speakFallback(text);
+            }
+        }
+
+        // =====================================================================
+        // 8. MICROPHONE PUSH-TO-TALK
+        // =====================================================================
+        let mediaRecorder = null;
+        let audioChunks = [];
+
+        async function startRecording() {
+            if (State.isRecording) return;
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                audioChunks = [];
+                let options = {};
+                if (typeof MediaRecorder.isTypeSupported === 'function') {
+                    if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
+                        options = { mimeType: 'audio/webm;codecs=opus' };
+                    } else if (MediaRecorder.isTypeSupported('audio/webm')) {
+                        options = { mimeType: 'audio/webm' };
+                    } else if (MediaRecorder.isTypeSupported('audio/mp4')) {
+                        options = { mimeType: 'audio/mp4' };
+                    }
+                }
+                mediaRecorder = new MediaRecorder(stream, options);
+                mediaRecorder.ondataavailable = (e) => {
+                    if (e.data && e.data.size > 0) audioChunks.push(e.data);
+                };
+                mediaRecorder.onstop = processVoiceInput;
+                mediaRecorder.start();
+
+                State.isRecording = true;
+                voiceBtn.classList.add('recording');
+                voiceBtn.innerText = "🔴 Listening... Release (V)";
+                speechStatus.innerText = "🎙️ Listening to you...";
+                speechText.innerText = "Speak to Rem...";
+            } catch (err) {
+                alert("Microphone permission denied or not available: " + err.message);
+            }
+        }
+
+        function stopRecording() {
+            if (!State.isRecording || !mediaRecorder) return;
+            mediaRecorder.stop();
+            State.isRecording = false;
+            voiceBtn.classList.remove('recording');
+            voiceBtn.innerText = "🎙️ Hold to Speak (V)";
+        }
+
+        async function processVoiceInput() {
+            const rawMime = (mediaRecorder && mediaRecorder.mimeType) ? mediaRecorder.mimeType : 'audio/webm';
+            const audioBlob = new Blob(audioChunks, { type: rawMime });
+            if (audioBlob.size < 1000) return;
+
+            speechStatus.innerText = "💭 Rem is listening to your voice...";
+
+            const reader = new FileReader();
+            reader.readAsDataURL(audioBlob);
+            reader.onloadend = async () => {
+                const base64Audio = reader.result.split(',')[1];
+                const baseMime = rawMime.split(';')[0] || 'audio/webm';
+                await sendAudioToGemini(base64Audio, baseMime);
+            };
+        }
+
+        async function sendAudioToGemini(base64Audio, mimeType = 'audio/webm') {
+            if (!State.geminiApiKey) {
+                setRemSubtitle("Please configure your Gemini API Key in Settings (⚙️).", "⚠️ Configuration Needed");
+                return;
+            }
+
+            try {
+                const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${State.geminiApiKey.trim()}`;
+                const payload = {
+                    system_instruction: { parts: [{ text: RemPersona }] },
+                    contents: [
+                        {
+                            role: "user",
+                            parts: [
+                                { inline_data: { mime_type: mimeType, data: base64Audio } },
+                                { text: "Listen to what Harshit said and reply lovingly in your character persona as Rem." }
+                            ]
+                        }
+                    ]
+                };
+
+                const res = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!res.ok) throw new Error("Audio Gemini request failed: " + res.status);
+                const data = await res.json();
+                let reply = data.candidates?.[0]?.content?.parts?.[0]?.text || "I hear your voice, Harshit!";
+                reply = reply.replace(/\*.*?\*/g, '').replace(/[\*#`]/g, '').trim();
+
+                appendToHistory("You", "[Spoke Voice Audio]", true);
+                appendToHistory("Rem", reply, false);
+                setRemSubtitle(reply, "🌸 Rem is speaking...");
+
+                await speakWithFishAudio(reply);
+            } catch (err) {
+                console.error("Audio Processing Error:", err);
+                talkToGemini("Hello Rem, I just spoke to you!");
+            }
+        }
+
+        // =====================================================================
+        // 9. EVENT LISTENERS
+        // =====================================================================
+        sendBtn.onclick = () => {
+            const val = chatInput.value.trim();
+            if (val) {
+                talkToGemini(val);
+                chatInput.value = "";
+            }
+        };
+
+        chatInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') sendBtn.click();
+        });
+
+        document.querySelectorAll('.chip').forEach((btn) => {
+            btn.onclick = () => {
+                const action = btn.getAttribute('data-action');
+                if (action === 'companion') {
+                    RemNav.walkToWaypoint('companion');
+                } else if (action === 'view') {
+                    RemNav.walkToWaypoint('balconyCenter');
+                } else if (action === 'pillar') {
+                    RemNav.walkToWaypoint('subaruPillar');
+                }
+                talkToGemini(btn.getAttribute('data-prompt'));
+            };
+        });
+
+        voiceBtn.addEventListener('mousedown', startRecording);
+        window.addEventListener('mouseup', stopRecording);
+        voiceBtn.addEventListener('touchstart', (e) => { e.preventDefault(); startRecording(); });
+        window.addEventListener('touchend', stopRecording);
+
+        window.addEventListener('keydown', (e) => {
+            if (e.key.toLowerCase() === 'v' && !State.isRecording && document.activeElement !== chatInput) {
+                startRecording();
+            }
+        });
+        window.addEventListener('keyup', (e) => {
+            if (e.key.toLowerCase() === 'v' && State.isRecording) {
+                stopRecording();
+            }
+        });
+
+        document.getElementById('toggle-history-btn').onclick = () => {
+            chatDrawer.classList.toggle('hidden');
+        };
+
+        const settingsModal = document.getElementById('settings-modal');
+        document.getElementById('settings-btn').onclick = () => {
+            document.getElementById('gemini-key').value = State.geminiApiKey;
+            document.getElementById('fish-key').value = State.fishAudioApiKey;
+            document.getElementById('fish-model').value = State.fishAudioModelId;
+            const currentModel = localStorage.getItem('rem_selected_model') || (new URLSearchParams(window.location.search).get('model') || 'models/Rem.glb');
+            const modelSelect = document.getElementById('rem-model-select');
+            if (modelSelect) modelSelect.value = currentModel;
+            settingsModal.classList.add('active');
+        };
+        document.getElementById('close-settings').onclick = () => {
+            settingsModal.classList.remove('active');
+        };
+        document.getElementById('save-settings').onclick = () => {
+            State.geminiApiKey = document.getElementById('gemini-key').value.trim();
+            State.fishAudioApiKey = document.getElementById('fish-key').value.trim();
+            State.fishAudioModelId = document.getElementById('fish-model').value.trim();
+
+            localStorage.setItem('rem_gemini_key', State.geminiApiKey);
+            localStorage.setItem('rem_fish_key', State.fishAudioApiKey);
+            localStorage.setItem('rem_fish_model', State.fishAudioModelId);
+
+            const modelSelect = document.getElementById('rem-model-select');
+            const selectedModel = modelSelect ? modelSelect.value : 'models/Rem.glb';
+            const prevModel = localStorage.getItem('rem_selected_model') || (new URLSearchParams(window.location.search).get('model') || 'models/Rem.glb');
+            localStorage.setItem('rem_selected_model', selectedModel);
+
+            settingsModal.classList.remove('active');
+            setRemSubtitle("Your settings have been saved, Harshit! I am ready whenever you wish.", "🌸 Rem is ready");
+
+            if (selectedModel !== prevModel) {
+                window.location.href = window.location.pathname + '?model=' + encodeURIComponent(selectedModel);
+            }
+        };
+
+        // =====================================================================
+        // 10. MOBILE OPTIMIZATIONS, GYROSCOPE & AUDIO UNLOCK
+        // =====================================================================
+        let gyroEnabled = false;
+        let initialGyro = null;
+
+        function setupGyroscope() {
+            const gyroBtn = document.getElementById('gyro-btn');
+            if (!gyroBtn) return;
+
+            if (!window.DeviceOrientationEvent) {
+                gyroBtn.style.display = 'none';
+                return;
+            }
+
+            gyroBtn.onclick = async () => {
+                if (!gyroEnabled) {
+                    if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+                        try {
+                            const res = await DeviceOrientationEvent.requestPermission();
+                            if (res !== 'granted') {
+                                alert("Device motion permission not granted.");
+                                return;
+                            }
+                        } catch (err) {
+                            console.warn("DeviceOrientation error:", err);
+                        }
+                    }
+                    window.addEventListener('deviceorientation', onDeviceOrientation, true);
+                    gyroEnabled = true;
+                    initialGyro = null;
+                    gyroBtn.classList.add('active');
+                    gyroBtn.innerText = "📱 Gyro: ON";
+                } else {
+                    window.removeEventListener('deviceorientation', onDeviceOrientation, true);
+                    gyroEnabled = false;
+                    gyroBtn.classList.remove('active');
+                    gyroBtn.innerText = "📱 Gyro";
+                }
+            };
+        }
+
+        function onDeviceOrientation(e) {
+            if (!gyroEnabled || e.gamma === null) return;
+            if (!initialGyro) {
+                initialGyro = { beta: e.beta || 0, gamma: e.gamma || 0 };
+            }
+            const deltaGamma = ((e.gamma || 0) - initialGyro.gamma) * (Math.PI / 180);
+            const deltaBeta = ((e.beta || 0) - initialGyro.beta) * (Math.PI / 180);
+
+            if (controls && controls.target && remModel) {
+                const tiltX = Math.sin(deltaGamma) * 0.4;
+                const tiltY = -Math.sin(deltaBeta) * 0.3;
+                controls.target.x = THREE.MathUtils.lerp(controls.target.x, remModel.position.x + tiltX, 0.1);
+                controls.target.y = THREE.MathUtils.lerp(controls.target.y, 1.10 + tiltY, 0.1);
+            }
+        }
+
+        function unlockAudioOnFirstTouch() {
+            function unlock() {
+                if (window.AudioContext || window.webkitAudioContext) {
+                    try {
+                        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                        if (ctx.state === 'suspended') ctx.resume();
+                    } catch (e) {}
+                }
+                if ('speechSynthesis' in window) {
+                    window.speechSynthesis.getVoices();
+                }
+                window.removeEventListener('touchstart', unlock);
+                window.removeEventListener('click', unlock);
+            }
+            window.addEventListener('touchstart', unlock, { passive: true });
+            window.addEventListener('click', unlock, { passive: true });
+        }
+
+        function setupMobileViewport() {
+            if (window.visualViewport) {
+                const chatBar = document.getElementById('chat-bar-container');
+                window.visualViewport.addEventListener('resize', () => {
+                    const keyboardHeight = window.innerHeight - window.visualViewport.height;
+                    if (keyboardHeight > 60) {
+                        chatBar.style.bottom = `${keyboardHeight + 10}px`;
+                    } else {
+                        chatBar.style.bottom = '';
+                    }
+                });
+            }
+        }
+
+        function updateNavHint() {
+            const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || (window.innerWidth <= 768);
+            const navHintEl = document.getElementById('nav-hint');
+            if (navHintEl) {
+                if (isMobileDevice) {
+                    navHintEl.innerHTML = "📱 Drag to look • Pinch to zoom • Tap floor to walk Rem";
+                } else {
+                    navHintEl.innerHTML = "🖱️ Drag to look • Scroll to zoom • Click floor to walk Rem";
+                }
+            }
+        }
+
+        function initApp() {
+            init3D();
+            setupGyroscope();
+            setupARMode();
+            unlockAudioOnFirstTouch();
+            setupMobileViewport();
+            updateNavHint();
+
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.register('./sw.js').catch(() => {});
+            }
+        }
+
+        if (document.readyState === 'complete') {
+            initApp();
+        } else {
+            window.addEventListener('load', initApp);
+        }
+    </script>
+</body>
+</html>

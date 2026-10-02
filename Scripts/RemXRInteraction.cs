@@ -1,228 +1,200 @@
 using UnityEngine;
+#if ENABLE_INPUT_SYSTEM
+using UnityEngine.InputSystem;
+#endif
 using UnityEngine.XR.Interaction.Toolkit;
 
 namespace Remniscence
 {
     /// <summary>
-    /// Handles XR input for interacting with Rem character
-    /// Supports both VR controllers and AR touch input
+    /// Handles XR and Desktop interactions with Rem.
+    /// Compatible with both the New Unity Input System and Legacy Input without throwing errors.
+    /// Supports VR Ray interactors, AR Touch, and Desktop Hotkeys.
     /// </summary>
     public class RemXRInteraction : MonoBehaviour
     {
-        [Header("XR Interaction Settings")]
+        [Header("XR Interaction")]
         [SerializeField] private XRRayInteractor leftRayInteractor;
         [SerializeField] private XRRayInteractor rightRayInteractor;
-        [SerializeField] private LayerMask interactableLayer = 1;
-        
-        [Header("Touch Input (AR Mode)")]
-        [SerializeField] private bool enableTouchInput = true;
-        [SerializeField] private Camera arCamera;
-        
-        [Header("Voice Commands")]
-        [SerializeField] private bool enableVoiceCommands = true;
+        [SerializeField] private LayerMask interactableLayer = ~0;
+
+        [Header("Touch & Pointer Input (AR / Desktop)")]
+        [SerializeField] private bool enablePointerInput = true;
+        [SerializeField] private Camera interactionCamera;
+
+        [Header("Desktop Test Hotkeys")]
         [SerializeField] private KeyCode voiceTestKey = KeyCode.Space;
-        
+        [SerializeField] private KeyCode greetingKey = KeyCode.G;
+        [SerializeField] private KeyCode encouragementKey = KeyCode.E;
+        [SerializeField] private KeyCode wakeWordTestKey = KeyCode.R;
+
         private RemController remController;
         private RemVoiceTrigger remVoiceTrigger;
-        
-        void Start()
+
+        void Awake()
         {
             InitializeComponents();
             SetupXRInteraction();
         }
-        
+
         void Update()
         {
-            HandleTouchInput();
-            HandleKeyboardInput(); // For testing in editor
+            HandlePointerAndTouchInput();
+            HandleKeyboardInput();
         }
-        
-        /// <summary>
-        /// Initialize required components
-        /// </summary>
+
         private void InitializeComponents()
         {
             remController = GetComponent<RemController>();
             remVoiceTrigger = GetComponent<RemVoiceTrigger>();
-            
-            if (arCamera == null)
+
+            if (interactionCamera == null)
             {
-                arCamera = Camera.main;
+                interactionCamera = Camera.main;
             }
         }
-        
-        /// <summary>
-        /// Setup XR interaction system
-        /// </summary>
+
         private void SetupXRInteraction()
         {
-            // Add XR interactable component if not present
             var xrInteractable = GetComponent<XRBaseInteractable>();
             if (xrInteractable == null)
             {
                 xrInteractable = gameObject.AddComponent<XRSimpleInteractable>();
             }
-            
-            // Subscribe to interaction events
+
             xrInteractable.selectEntered.AddListener(OnXRSelect);
             xrInteractable.hoverEntered.AddListener(OnXRHoverEnter);
             xrInteractable.hoverExited.AddListener(OnXRHoverExit);
-            
-            // Setup collider for interaction
-            var collider = GetComponent<Collider>();
-            if (collider == null)
+
+            // Ensure trigger collider exists for raycast/touch
+            var col = GetComponent<Collider>();
+            if (col == null)
             {
-                var capsuleCollider = gameObject.AddComponent<CapsuleCollider>();
-                capsuleCollider.height = 1.8f;
-                capsuleCollider.radius = 0.5f;
-                capsuleCollider.center = new Vector3(0, 0.9f, 0);
-                capsuleCollider.isTrigger = true;
+                var capsule = gameObject.AddComponent<CapsuleCollider>();
+                capsule.height = 1.6f;
+                capsule.radius = 0.4f;
+                capsule.center = new Vector3(0, 0.8f, 0);
+                capsule.isTrigger = true;
             }
         }
-        
+
         /// <summary>
-        /// Handle touch input for AR interactions
+        /// Unified input handling for legacy & new input systems to avoid runtime exceptions
         /// </summary>
-        private void HandleTouchInput()
+        private void HandlePointerAndTouchInput()
         {
-            if (!enableTouchInput || arCamera == null) return;
-            
-            #if UNITY_EDITOR || UNITY_STANDALONE
-            // Mouse input for testing in editor
+            if (!enablePointerInput) return;
+            if (interactionCamera == null) interactionCamera = Camera.main;
+            if (interactionCamera == null) return;
+
+            bool pointerPressed = false;
+            Vector2 screenPos = Vector2.zero;
+
+#if ENABLE_INPUT_SYSTEM
+            if (Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame)
+            {
+                pointerPressed = true;
+                screenPos = Mouse.current.position.ReadValue();
+            }
+            else if (Touchscreen.current != null && Touchscreen.current.primaryTouch.press.wasPressedThisFrame)
+            {
+                pointerPressed = true;
+                screenPos = Touchscreen.current.primaryTouch.position.ReadValue();
+            }
+#else
             if (Input.GetMouseButtonDown(0))
             {
-                Ray ray = arCamera.ScreenPointToRay(Input.mousePosition);
-                HandleRaycast(ray);
+                pointerPressed = true;
+                screenPos = Input.mousePosition;
             }
-            #elif UNITY_ANDROID || UNITY_IOS
-            // Touch input for mobile AR
-            if (Input.touchCount > 0)
+            else if (Input.touchCount > 0 && Input.GetTouch(0).phase == TouchPhase.Began)
             {
-                Touch touch = Input.GetTouch(0);
-                if (touch.phase == TouchPhase.Began)
-                {
-                    Ray ray = arCamera.ScreenPointToRay(touch.position);
-                    HandleRaycast(ray);
-                }
+                pointerPressed = true;
+                screenPos = Input.GetTouch(0).position;
             }
-            #endif
-        }
-        
-        /// <summary>
-        /// Handle raycast for touch/mouse input
-        /// </summary>
-        private void HandleRaycast(Ray ray)
-        {
-            RaycastHit hit;
-            if (Physics.Raycast(ray, out hit, Mathf.Infinity, interactableLayer))
+#endif
+
+            if (pointerPressed)
             {
-                if (hit.collider.gameObject == gameObject)
+                Ray ray = interactionCamera.ScreenPointToRay(screenPos);
+                if (Physics.Raycast(ray, out RaycastHit hit, Mathf.Infinity, interactableLayer))
                 {
-                    OnPlayerTouch();
+                    var prop = hit.collider.GetComponentInParent<RemInteractiveProp>();
+                    if (prop != null)
+                    {
+                        prop.Interact();
+                    }
+                    else if (hit.collider.gameObject == gameObject || hit.collider.transform.IsChildOf(transform))
+                    {
+                        OnPlayerInteract();
+                    }
                 }
             }
         }
-        
-        /// <summary>
-        /// Handle keyboard input for testing
-        /// </summary>
+
         private void HandleKeyboardInput()
         {
-            #if UNITY_EDITOR
-            if (Input.GetKeyDown(voiceTestKey))
+            bool testPressed = false;
+            bool greetingPressed = false;
+            bool encouragePressed = false;
+            bool wakeWordPressed = false;
+
+#if ENABLE_INPUT_SYSTEM
+            if (Keyboard.current != null)
             {
-                TestVoiceInteraction();
+                testPressed = Keyboard.current.spaceKey.wasPressedThisFrame;
+                greetingPressed = Keyboard.current.gKey.wasPressedThisFrame;
+                encouragePressed = Keyboard.current.eKey.wasPressedThisFrame;
+                wakeWordPressed = Keyboard.current.rKey.wasPressedThisFrame;
             }
-            
-            if (Input.GetKeyDown(KeyCode.G))
+#else
+            testPressed = Input.GetKeyDown(voiceTestKey);
+            greetingPressed = Input.GetKeyDown(greetingKey);
+            encouragePressed = Input.GetKeyDown(encouragementKey);
+            wakeWordPressed = Input.GetKeyDown(wakeWordTestKey);
+#endif
+
+            if (testPressed)
+            {
+                remVoiceTrigger?.PlayRandomVoiceLine();
+            }
+            else if (greetingPressed)
             {
                 remVoiceTrigger?.PlayGreeting();
             }
-            
-            if (Input.GetKeyDown(KeyCode.E))
+            else if (encouragePressed)
             {
                 remVoiceTrigger?.PlayEncouragement();
             }
-            #endif
+            else if (wakeWordPressed)
+            {
+                remVoiceTrigger?.OnTriggerWordDetected();
+            }
         }
-        
-        /// <summary>
-        /// Called when XR controller selects Rem
-        /// </summary>
+
         private void OnXRSelect(SelectEnterEventArgs args)
         {
-            Debug.Log("XR Select: Player interacted with Rem");
             OnPlayerInteract();
         }
-        
-        /// <summary>
-        /// Called when XR controller hovers over Rem
-        /// </summary>
+
         private void OnXRHoverEnter(HoverEnterEventArgs args)
         {
-            Debug.Log("XR Hover Enter: Player looking at Rem");
-            // Could add visual feedback here (glow effect, etc.)
+            // Hover feedback can be added here
         }
-        
-        /// <summary>
-        /// Called when XR controller stops hovering over Rem
-        /// </summary>
+
         private void OnXRHoverExit(HoverExitEventArgs args)
         {
-            Debug.Log("XR Hover Exit: Player looked away from Rem");
-            // Remove visual feedback
         }
-        
-        /// <summary>
-        /// Called when player touches Rem (AR mode)
-        /// </summary>
-        private void OnPlayerTouch()
-        {
-            Debug.Log("Touch: Player touched Rem");
-            OnPlayerInteract();
-        }
-        
-        /// <summary>
-        /// Main interaction handler
-        /// </summary>
-        private void OnPlayerInteract()
+
+        public void OnPlayerInteract()
         {
             remController?.OnPlayerInteract();
         }
-        
-        /// <summary>
-        /// Test voice interaction (for development)
-        /// </summary>
-        private void TestVoiceInteraction()
-        {
-            remVoiceTrigger?.PlayRandomVoiceLine();
-        }
-        
-        /// <summary>
-        /// Enable/disable XR interaction
-        /// </summary>
-        public void SetXRInteractionEnabled(bool enabled)
-        {
-            var xrInteractable = GetComponent<XRBaseInteractable>();
-            if (xrInteractable != null)
-            {
-                xrInteractable.enabled = enabled;
-            }
-        }
-        
-        /// <summary>
-        /// Enable/disable touch interaction
-        /// </summary>
-        public void SetTouchInteractionEnabled(bool enabled)
-        {
-            enableTouchInput = enabled;
-        }
-        
+
         void OnDrawGizmosSelected()
         {
-            // Draw interaction sphere
             Gizmos.color = Color.magenta;
-            Gizmos.DrawWireSphere(transform.position + Vector3.up * 0.9f, 0.5f);
+            Gizmos.DrawWireSphere(transform.position + Vector3.up * 0.8f, 0.4f);
         }
     }
 }

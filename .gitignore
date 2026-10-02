@@ -171,3 +171,10 @@ Temporary Items
 .vscode/settings.json
 .vscode/launch.json
 .idea/
+
+# Local Dev & Scratch
+scratch/
+web/rendered_scene*.png
+web/screenshot*.png
+web/web_ar_check.png
+web/models/*_backup.glb

@@ -1,0 +1,11 @@
+<resources>
+    <style name="Theme.RemCompanion" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="android:statusBarColor">#0f172a</item>
+        <item name="android:navigationBarColor">#0f172a</item>
+    </style>
+
+    <style name="Theme.RemCompanion.Fullscreen" parent="Theme.RemCompanion">
+        <item name="android:windowFullscreen">true</item>
+        <item name="android:windowContentOverlay">@null</item>
+    </style>
+</resources>

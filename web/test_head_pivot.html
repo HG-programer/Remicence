@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Rem Head Gaze vs Body Test</title>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+    <style>
+        body { margin: 0; background: #38bdf8; overflow: hidden; font-family: sans-serif; }
+        #ui {
+            position: absolute; top: 15px; left: 15px; background: rgba(15,23,42,0.85);
+            color: white; padding: 15px 20px; border-radius: 10px; font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div id="ui">
+        <div style="font-weight: bold; font-size: 16px;">🌸 Head Gaze Tracking Test</div>
+        <div id="status">Loading...</div>
+    </div>
+    <script>
+        const statusEl = document.getElementById('status');
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+        camera.position.set(1.5, 1.3, 2.2); // Angled view to see head turn towards camera while body faces forward
+        camera.lookAt(0, 1.1, 0);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.outputEncoding = THREE.sRGBEncoding;
+        document.body.appendChild(renderer.domElement);
+
+        scene.add(new THREE.AmbientLight(0xffffff, 0.9));
+        const sun = new THREE.DirectionalLight(0xffffff, 1.1);
+        sun.position.set(5, 12, 6);
+        scene.add(sun);
+
+        const grid = new THREE.GridHelper(10, 20, 0x0284c7, 0x64748b);
+        scene.add(grid);
+
+        let remModel = null;
+        let headGroup = null;
+
+        const HEAD_MESH_NAMES = [
+            'backhair', 'face', 'transparent', 'mouth1', 'mouth2', 'mouth3',
+            'whiteeye', 'eye', 'nose', 'hair', 'acce'
+        ];
+
+        const loader = new THREE.GLTFLoader();
+        loader.load('models/Rem.glb', (gltf) => {
+            const rawModel = gltf.scene;
+            remModel = new THREE.Group();
+            scene.add(remModel);
+
+            // Neck pivot height in unscaled model coordinates
+            const NECK_PIVOT_Y = 17.2;
+
+            headGroup = new THREE.Group();
+            headGroup.position.set(0, NECK_PIVOT_Y, 0);
+            remModel.add(headGroup);
+
+            const bodyGroup = new THREE.Group();
+            remModel.add(bodyGroup);
+
+            rawModel.traverse((child) => {
+                if (child.isMesh) {
+                    const name = (child.name || '').toLowerCase();
+                    if (name.includes('edge')) return;
+
+                    if (child.material) {
+                        child.material.side = THREE.DoubleSide;
+                        if (child.material.map) child.material.map.encoding = THREE.sRGBEncoding;
+                    }
+
+                    const isHead = HEAD_MESH_NAMES.some(h => name.includes(h));
+                    if (isHead) {
+                        const clone = child.clone();
+                        // Offset child so headGroup origin is at neck (17.2)
+                        clone.position.y -= NECK_PIVOT_Y;
+                        headGroup.add(clone);
+                    } else {
+                        bodyGroup.add(child.clone());
+                    }
+                }
+            });
+
+            // Scale to canonical Rem height (1.54m)
+            const scale = 1.54 / 21.05;
+            remModel.scale.setScalar(scale);
+
+            // Ground Rem's feet at y = 0
+            const box = new THREE.Box3().setFromObject(remModel);
+            remModel.position.y = -box.min.y;
+
+            // Rem faces forward (rotation.y = 0)
+            remModel.rotation.y = 0;
+
+            // Turn head smoothly towards the camera (camera is at X=1.5, Z=2.2)
+            // Head turns to look at camera while her body stays facing forward!
+            const dx = camera.position.x - remModel.position.x;
+            const dz = camera.position.z - remModel.position.z;
+            const lookAngle = Math.atan2(dx, dz);
+            headGroup.rotation.y = lookAngle; // Look at camera!
+
+            statusEl.innerText = "Head Turned " + (lookAngle * 180 / Math.PI).toFixed(1) + "° to Camera! Body Fixed Forward.";
+            console.log("HEAD PIVOT TEST READY");
+        });
+
+        function animate() {
+            requestAnimationFrame(animate);
+            renderer.render(scene, camera);
+        }
+        animate();
+    </script>
+</body>
+</html>

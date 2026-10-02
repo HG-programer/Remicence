@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Rem Maid Posture Test</title>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+    <style>
+        body { margin: 0; background: #38bdf8; overflow: hidden; font-family: sans-serif; }
+        #ui {
+            position: absolute; top: 15px; left: 15px; background: rgba(15,23,42,0.85);
+            color: white; padding: 15px 20px; border-radius: 10px; font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div id="ui">
+        <div style="font-weight: bold; font-size: 16px;">🌸 Re:Zero Maid Posture Test</div>
+        <div id="status">Loading Rem_maid_posture.glb...</div>
+    </div>
+    <script>
+        const statusEl = document.getElementById('status');
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+        camera.position.set(0, 1.25, 2.4);
+        camera.lookAt(0, 1.05, 0);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.outputEncoding = THREE.sRGBEncoding;
+        document.body.appendChild(renderer.domElement);
+
+        scene.add(new THREE.AmbientLight(0xffffff, 0.9));
+        const sun = new THREE.DirectionalLight(0xffffff, 1.1);
+        sun.position.set(5, 12, 6);
+        scene.add(sun);
+
+        const grid = new THREE.GridHelper(10, 20, 0x0284c7, 0x64748b);
+        scene.add(grid);
+
+        const loader = new THREE.GLTFLoader();
+        loader.load('models/Rem_maid_perfect.glb', (gltf) => {
+            const model = gltf.scene;
+
+            model.traverse((child) => {
+                if (child.isMesh) {
+                    const name = (child.name || '').toLowerCase();
+                    if (name.includes('edge')) child.visible = false;
+                    if (name.includes('mouth2') || name.includes('mouth3')) child.visible = false;
+                    if (child.material) {
+                        child.material.side = THREE.DoubleSide;
+                        if (child.material.map) child.material.map.encoding = THREE.sRGBEncoding;
+                    }
+                }
+            });
+
+            const box = new THREE.Box3().setFromObject(model);
+            const size = new THREE.Vector3();
+            box.getSize(size);
+            const scaleFactor = 1.54 / size.y;
+            model.scale.multiplyScalar(scaleFactor);
+
+            const newBox = new THREE.Box3().setFromObject(model);
+            model.position.y = -newBox.min.y;
+            model.position.x = -(newBox.min.x + newBox.max.x) / 2;
+            model.position.z = -(newBox.min.z + newBox.max.z) / 2;
+
+            scene.add(model);
+            statusEl.innerText = "Maid Posture Loaded!";
+            console.log("MAID POSTURE LOADED OK");
+        }, undefined, (err) => {
+            statusEl.innerText = "Error: " + err.message;
+        });
+
+        function animate() {
+            requestAnimationFrame(animate);
+            renderer.render(scene, camera);
+        }
+        animate();
+    </script>
+</body>
+</html>

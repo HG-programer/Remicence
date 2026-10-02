@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html>
+<head>
+<script src="libs/three.min.js"></script>
+<script src="libs/GLTFLoader.js"></script>
+<script src="libs/OrbitControls.js"></script>
+<style>body { margin:0; background: #87ceeb; overflow:hidden; }</style>
+</head>
+<body>
+<script>
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 100);
+camera.position.set(0, 1.25, 2.2);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.outputEncoding = THREE.sRGBEncoding;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.0;
+document.body.appendChild(renderer.domElement);
+
+const controls = new THREE.OrbitControls(camera, renderer.domElement);
+controls.target.set(0, 0.95, 0);
+controls.update();
+
+// Lighting
+const hemiLight = new THREE.HemisphereLight(0xbbe4ff, 0xebdcc7, 0.85);
+scene.add(hemiLight);
+
+const sunLight = new THREE.DirectionalLight(0xfffaea, 1.2);
+sunLight.position.set(-5, 12, 10);
+scene.add(sunLight);
+
+const fillLight = new THREE.DirectionalLight(0xe0f2fe, 0.4);
+fillLight.position.set(5, 8, 5);
+scene.add(fillLight);
+
+let rem = null;
+const loader = new THREE.GLTFLoader();
+loader.load('models/Rem_pre_maid_backup.glb', (gltf) => {
+    rem = gltf.scene;
+    rem.traverse(c => {
+        if (c.isMesh) {
+            const name = (c.name || '').toLowerCase();
+            if (name.includes('edge')) {
+                c.visible = false;
+            }
+            if (c.material) {
+                c.material.side = THREE.DoubleSide;
+                if (c.material.map) c.material.map.encoding = THREE.sRGBEncoding;
+            }
+        }
+    });
+
+    const box = new THREE.Box3().setFromObject(rem);
+    const size = new THREE.Vector3();
+    box.getSize(size);
+    const scale = 1.54 / (size.y || 1);
+    rem.scale.multiplyScalar(scale);
+
+    const newBox = new THREE.Box3().setFromObject(rem);
+    rem.position.y = -newBox.min.y;
+    rem.position.x = -(newBox.min.x + newBox.max.x) / 2;
+    rem.position.z = -(newBox.min.z + newBox.max.z) / 2;
+
+    scene.add(rem);
+    console.log("Rem authentic loaded, full height 1.54m");
+});
+
+function animate() {
+    requestAnimationFrame(animate);
+    const t = performance.now() * 0.001;
+    if (rem) {
+        // Natural gentle idle breathing
+        rem.position.y = (rem.position.y || 0) + Math.sin(t * 2.2) * 0.0006;
+    }
+    controls.update();
+    renderer.render(scene, camera);
+}
+animate();
+</script>
+</body>
+</html>

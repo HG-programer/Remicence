@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Authentic Rigged Rem Test</title>
+    <style>body { margin: 0; background: #38bdf8; overflow: hidden; }</style>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+</head>
+<body>
+    <div id="status" style="position:absolute;top:10px;left:10px;color:#fff;background:rgba(0,0,0,0.8);padding:10px;font-family:sans-serif;border-radius:8px;">
+        Building Authentic Humanoid Rig...
+    </div>
+    <script>
+        const status = document.getElementById('status');
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x7dd3fc);
+
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+        camera.position.set(0, 1.2, 3.2);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.08;
+        renderer.outputEncoding = THREE.sRGBEncoding;
+        document.body.appendChild(renderer.domElement);
+
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.target.set(0, 0.9, 0);
+
+        // Lighting
+        scene.add(new THREE.AmbientLight(0xffffff, 0.85));
+        const sun = new THREE.DirectionalLight(0xfffaea, 1.2);
+        sun.position.set(5, 12, 8);
+        scene.add(sun);
+        const fill = new THREE.DirectionalLight(0xe0f2fe, 0.6);
+        fill.position.set(-5, 6, -5);
+        scene.add(fill);
+
+        // Grid floor
+        const grid = new THREE.GridHelper(10, 20, 0xffffff, 0x999999);
+        scene.add(grid);
+
+        // =====================================================================
+        // SKELETAL RIG CREATION FOR AUTHENTIC REM
+        // Authentic Model Height is ~21.0 units (Y = 0 to 21.0)
+        // =====================================================================
+        const remGroup = new THREE.Group();
+        scene.add(remGroup);
+
+        // Define Humanoid Skeleton in Authentic Model Space (Y: 0..21)
+        const bones = [];
+        const boneMap = {};
+
+        function addBone(name, parent, x, y, z) {
+            const b = new THREE.Bone();
+            b.name = name;
+            b.position.set(x, y, z);
+            if (parent) parent.add(b);
+            bones.push(b);
+            boneMap[name] = b;
+            return b;
+        }
+
+        // Hierarchy:
+        // Root (0, 0, 0)
+        // └── Hips (0, 8.8, 0)
+        //     ├── Spine (0, 4.0, 0) -> Y = 12.8
+        //     │   └── Chest (0, 3.8, 0) -> Y = 16.6
+        //     │       ├── Neck (0, 1.0, 0) -> Y = 17.6
+        //     │       │   └── Head (0, 1.5, 0.2) -> Y = 19.1
+        //     │       ├── LeftShoulder (1.8, -0.5, 0.1)
+        //     │       │   └── LeftArm (0.8, -2.5, 0.2)
+        //     │       └── RightShoulder (-1.8, -0.5, 0.1)
+        //     │           └── RightArm (-0.8, -2.5, 0.2)
+        //     ├── LeftThigh (0.85, -0.5, 0) -> Y = 8.3
+        //     │   └── LeftShin (0, -4.3, 0) -> Y = 4.0
+        //     │       └── LeftFoot (0, -3.8, 0.2) -> Y = 0.2
+        //     └── RightThigh (-0.85, -0.5, 0) -> Y = 8.3
+        //         └── RightShin (0, -4.3, 0) -> Y = 4.0
+        //             └── RightFoot (0, -3.8, 0.2) -> Y = 0.2
+
+        const rootBone = addBone('Root', null, 0, 0, 0);
+        const hips = addBone('Hips', rootBone, 0, 8.8, 0);
+
+        const spine = addBone('Spine', hips, 0, 4.0, 0);
+        const chest = addBone('Chest', spine, 0, 3.8, 0);
+        const neck = addBone('Neck', chest, 0, 1.0, 0);
+        const head = addBone('Head', neck, 0, 1.5, 0.2);
+
+        const leftThigh = addBone('LeftThigh', hips, 0.85, -0.5, 0);
+        const leftShin = addBone('LeftShin', leftThigh, 0, -4.3, 0);
+        const leftFoot = addBone('LeftFoot', leftShin, 0, -3.8, 0.2);
+
+        const rightThigh = addBone('RightThigh', hips, -0.85, -0.5, 0);
+        const rightShin = addBone('RightShin', rightThigh, 0, -4.3, 0);
+        const rightFoot = addBone('RightFoot', rightShin, 0, -3.8, 0.2);
+
+        const leftShoulder = addBone('LeftShoulder', chest, 1.8, -0.5, 0.1);
+        const leftArm = addBone('LeftArm', leftShoulder, 0.8, -2.5, 0.2);
+
+        const rightShoulder = addBone('RightShoulder', chest, -1.8, -0.5, 0.1);
+        const rightArm = addBone('RightArm', rightShoulder, -0.8, -2.5, 0.2);
+
+        remGroup.add(rootBone);
+
+        const skeleton = new THREE.Skeleton(bones);
+        const bIndices = {};
+        bones.forEach((b, i) => { bIndices[b.name] = i; });
+
+        console.log("Skeleton created with", bones.length, "bones.");
+
+        // Load Authentic Model and bind meshes to skeleton
+        const loader = new THREE.GLTFLoader();
+        loader.load('models/Rem.glb', (gltf) => {
+            console.log("GLTF load success!");
+            const rawModel = gltf.scene;
+            status.innerText = "Rigging authentic anime meshes to humanoid skeleton...";
+
+            rawModel.traverse((child) => {
+                if (child.isMesh) {
+                    const name = (child.name || '').toLowerCase();
+                    const matName = (child.material && child.material.name ? child.material.name : '').toLowerCase();
+
+                    // Hide edge outlines
+                    if (name.includes('edge') || matName.includes('edge')) return;
+
+                    // Mouth expression tracking
+                    if (name.includes('mouth2') || name.includes('mouth3')) {
+                        child.visible = false;
+                    }
+
+                    // Setup materials for GPU vertex skinning
+                    if (child.material) {
+                        child.material.side = THREE.DoubleSide;
+                        child.material.skinning = true;
+                        child.material.needsUpdate = true;
+                        if (child.material.map) child.material.map.encoding = THREE.sRGBEncoding;
+                    }
+
+                    // Skinning the geometry
+                    const geo = child.geometry.clone();
+                    const pos = geo.attributes.position;
+                    const vCount = pos.count;
+
+                    const skinIndices = [];
+                    const skinWeights = [];
+
+                    for (let i = 0; i < vCount; i++) {
+                        const vx = pos.getX(i);
+                        const vy = pos.getY(i);
+                        const vz = pos.getZ(i);
+
+                        let b0 = bIndices['Hips'];
+                        let w0 = 1.0;
+                        let b1 = bIndices['Hips'];
+                        let w1 = 0.0;
+
+                        // Classify vertices by anatomical region:
+                        if (vy >= 16.5) {
+                            // Head & Face & Hair & Katyusha
+                            b0 = bIndices['Head'];
+                            w0 = 1.0;
+                        } else if (vy >= 12.8) {
+                            // Upper Chest & Shoulders & Arms
+                            if (vx > 2.0) {
+                                // Left Arm
+                                if (vy < 14.5) { b0 = bIndices['LeftArm']; w0 = 1.0; }
+                                else { b0 = bIndices['LeftShoulder']; w0 = 1.0; }
+                            } else if (vx < -2.0) {
+                                // Right Arm
+                                if (vy < 14.5) { b0 = bIndices['RightArm']; w0 = 1.0; }
+                                else { b0 = bIndices['RightShoulder']; w0 = 1.0; }
+                            } else {
+                                // Chest
+                                b0 = bIndices['Chest'];
+                                w0 = 0.8;
+                                b1 = bIndices['Spine'];
+                                w1 = 0.2;
+                            }
+                        } else if (vy >= 8.5) {
+                            // Waist & Skirt
+                            b0 = bIndices['Spine'];
+                            w0 = 0.5;
+                            b1 = bIndices['Hips'];
+                            w1 = 0.5;
+                        } else if (vy >= 4.0) {
+                            // Thighs / Upper Legs
+                            if (vx >= 0) {
+                                b0 = bIndices['LeftThigh'];
+                                w0 = 0.8;
+                                b1 = bIndices['LeftShin'];
+                                w1 = 0.2;
+                            } else {
+                                b0 = bIndices['RightThigh'];
+                                w0 = 0.8;
+                                b1 = bIndices['RightShin'];
+                                w1 = 0.2;
+                            }
+                        } else {
+                            // Calves, Ankles, Shoes
+                            if (vx >= 0) {
+                                if (vy < 1.0) { b0 = bIndices['LeftFoot']; w0 = 1.0; }
+                                else { b0 = bIndices['LeftShin']; w0 = 1.0; }
+                            } else {
+                                if (vy < 1.0) { b0 = bIndices['RightFoot']; w0 = 1.0; }
+                                else { b0 = bIndices['RightShin']; w0 = 1.0; }
+                            }
+                        }
+
+                        skinIndices.push(b0, b1, 0, 0);
+                        skinWeights.push(w0, w1, 0, 0);
+                    }
+
+                    geo.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(skinIndices, 4));
+                    geo.setAttribute('skinWeight', new THREE.Float32BufferAttribute(skinWeights, 4));
+
+                    const skinnedMesh = new THREE.SkinnedMesh(geo, child.material);
+                    skinnedMesh.name = child.name;
+                    skinnedMesh.bind(skeleton);
+                    skinnedMesh.castShadow = true;
+                    skinnedMesh.receiveShadow = true;
+                    remGroup.add(skinnedMesh);
+                }
+            });
+
+            // Scale to canonical 1.54m height
+            const targetHeight = 1.54;
+            const originalHeight = 21.05;
+            const scale = targetHeight / originalHeight;
+            remGroup.scale.setScalar(scale);
+
+            status.innerText = "🌸 Authentic Rem Humanoid Skinned Model Active! Smooth Walk & Idle running.";
+        }, (xhr) => {
+            console.log("GLTF progress:", xhr.loaded);
+        }, (err) => {
+            console.error("GLTF load error:", err);
+            status.innerText = "Error: " + err.message;
+        });
+
+        // =====================================================================
+        // SMOOTH GAIT LOCOMOTION ENGINE (ZERO JITTER)
+        // =====================================================================
+        let walkPhase = 0;
+        let isWalking = false;
+        let walkWeight = 0.0;
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const time = performance.now() * 0.001;
+
+            if (boneMap['LeftThigh'] && boneMap['RightThigh']) {
+                const sinWalk = Math.sin(walkPhase);
+                const cosWalk = Math.cos(walkPhase);
+
+                // 1. Test forward kick on left leg
+                boneMap['LeftThigh'].rotation.x = 1.0; 
+                boneMap['LeftShin'].rotation.x = -0.8;
+
+                // 2. Right leg
+                boneMap['RightThigh'].rotation.x = -0.6;
+                boneMap['RightShin'].rotation.x = 0.2;
+
+                // 3. Natural Breathing Idle (Smooth chest expansion)
+                const breathe = Math.sin(time * 2.0) * 0.02;
+                boneMap['Chest'].rotation.x = breathe;
+
+                // 4. Head gentle tilt
+                boneMap['Head'].rotation.z = Math.sin(time * 1.2) * 0.015;
+            }
+
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        animate();
+    </script>
+</body>
+</html>

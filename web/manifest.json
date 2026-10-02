@@ -1,0 +1,19 @@
+{
+  "name": "Project Remniscence - AR Companion",
+  "short_name": "Rem AR",
+  "description": "Gentle anime 3D and Pokemon GO AR companion featuring Rem from Re:Zero",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0f172a",
+  "theme_color": "#0284c7",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

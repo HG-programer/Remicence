@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+</head>
+<body style="margin:0; background:#38bdf8;">
+    <div id="status" style="position:absolute;top:10px;left:10px;color:white;font-family:sans-serif;background:rgba(0,0,0,0.8);padding:10px;">Loading Legs...</div>
+    <script>
+        const status = document.getElementById('status');
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth/window.innerHeight, 0.1, 100);
+        camera.position.set(0, 1.0, 3.0);
+        camera.lookAt(0, 0.7, 0);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.outputEncoding = THREE.sRGBEncoding;
+        document.body.appendChild(renderer.domElement);
+
+        scene.add(new THREE.AmbientLight(0xffffff, 0.8));
+        const sun = new THREE.DirectionalLight(0xffffff, 1.0);
+        sun.position.set(5, 10, 5);
+        scene.add(sun);
+
+        const grid = new THREE.GridHelper(10, 20);
+        scene.add(grid);
+
+        let leftThigh, rightThigh, leftShin, rightShin;
+
+        const loader = new THREE.GLTFLoader();
+        loader.load('models/Rem.glb', (gltf) => {
+            const rawModel = gltf.scene;
+            const fullGroup = new THREE.Group();
+            scene.add(fullGroup);
+
+            // Bones:
+            // Root (0, 0, 0)
+            // └── Hips (0, 8.8, 0)
+            //     ├── LeftThigh (0.6, -0.5, 0) -> Shin (0, -4.2, 0)
+            //     └── RightThigh (-0.6, -0.5, 0) -> Shin (0, -4.2, 0)
+            const rootBone = new THREE.Bone();
+            rootBone.position.set(0, 0, 0);
+
+            const hips = new THREE.Bone();
+            hips.position.set(0, 8.8, 0);
+            rootBone.add(hips);
+
+            leftThigh = new THREE.Bone();
+            leftThigh.position.set(0.65, -0.5, 0);
+            hips.add(leftThigh);
+
+            leftShin = new THREE.Bone();
+            leftShin.position.set(0, -4.2, 0);
+            leftThigh.add(leftShin);
+
+            rightThigh = new THREE.Bone();
+            rightThigh.position.set(-0.65, -0.5, 0);
+            hips.add(rightThigh);
+
+            rightShin = new THREE.Bone();
+            rightShin.position.set(0, -4.2, 0);
+            rightThigh.add(rightShin);
+
+            const bones = [rootBone, hips, leftThigh, leftShin, rightThigh, rightShin];
+            const skeleton = new THREE.Skeleton(bones);
+
+            rawModel.traverse((child) => {
+                if (child.isMesh) {
+                    const name = (child.name || '').toLowerCase();
+                    if (name.includes('edge')) return;
+
+                    if (name.includes('mouth2') || name.includes('mouth3')) child.visible = false;
+
+                    const isLegs = name.includes('socks1');
+                    if (isLegs) {
+                        // Apply skinning to Legs!
+                        const geo = child.geometry.clone();
+                        const pos = geo.attributes.position;
+                        const skinIndices = [];
+                        const skinWeights = [];
+
+                        for (let i = 0; i < pos.count; i++) {
+                            const vx = pos.getX(i);
+                            const vy = pos.getY(i);
+
+                            if (vx > 0) {
+                                // Left leg
+                                if (vy > 4.2) {
+                                    skinIndices.push(2, 3, 0, 0); // LeftThigh
+                                    skinWeights.push(0.85, 0.15, 0, 0);
+                                } else {
+                                    skinIndices.push(3, 2, 0, 0); // LeftShin
+                                    skinWeights.push(0.9, 0.1, 0, 0);
+                                }
+                            } else {
+                                // Right leg
+                                if (vy > 4.2) {
+                                    skinIndices.push(4, 5, 0, 0); // RightThigh
+                                    skinWeights.push(0.85, 0.15, 0, 0);
+                                } else {
+                                    skinIndices.push(5, 4, 0, 0); // RightShin
+                                    skinWeights.push(0.9, 0.1, 0, 0);
+                                }
+                            }
+                        }
+
+                        geo.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(skinIndices, 4));
+                        geo.setAttribute('skinWeight', new THREE.Float32BufferAttribute(skinWeights, 4));
+
+                        const mat = child.material.clone();
+                        mat.skinning = true;
+                        mat.side = THREE.DoubleSide;
+
+                        const skinnedLegs = new THREE.SkinnedMesh(geo, mat);
+                        skinnedLegs.add(rootBone);
+                        skinnedLegs.bind(skeleton);
+                        fullGroup.add(skinnedLegs);
+                    } else {
+                        // All other meshes (Dress, Corset, Apron, Head, Arms) remain static attached to fullGroup!
+                        child.material.side = THREE.DoubleSide;
+                        fullGroup.add(child.clone());
+                    }
+                }
+            });
+
+            // Scale to canonical 1.54m height
+            const scale = 1.54 / 21.05;
+            fullGroup.scale.setScalar(scale);
+
+            // Bend Left Thigh forward, Right Thigh backward!
+            leftThigh.rotation.x = 0.55;
+            leftShin.rotation.x = -0.45;
+
+            rightThigh.rotation.x = -0.55;
+            rightShin.rotation.x = 0.50;
+
+            status.innerText = "Legs Rigged & Walk Stride Active!";
+            console.log("LEGS RIGGED OK");
+        });
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const time = performance.now() * 0.001;
+            if (leftThigh && rightThigh) {
+                const walkPhase = time * 4.0;
+                const sin = Math.sin(walkPhase);
+                const cos = Math.cos(walkPhase);
+
+                leftThigh.rotation.x = sin * 0.45;
+                leftShin.rotation.x = Math.max(0, -cos * 0.5);
+
+                rightThigh.rotation.x = -sin * 0.45;
+                rightShin.rotation.x = Math.max(0, cos * 0.5);
+            }
+            renderer.render(scene, camera);
+        }
+        animate();
+    </script>
+</body>
+</html>

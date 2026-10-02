@@ -1,314 +1,298 @@
 using UnityEngine;
 using System.Collections;
-using System.Collections.Generic;
-using UnityEngine.Networking;
 
 namespace Remniscence
 {
     /// <summary>
-    /// Handles voice interaction, TTS, and comforting voice lines for Rem
+    /// Pure Live Voice System for Rem:
+    /// Powered 100% dynamically by Google Gemini API (Conversational AI Brain)
+    /// and Fish Audio API (Live Anime Voice Synthesis).
+    /// All static pre-recorded clip mechanisms have been retired.
     /// </summary>
+    [RequireComponent(typeof(AudioSource))]
     public class RemVoiceTrigger : MonoBehaviour
     {
-        [Header("Audio Settings")]
+        [Header("Audio Output Settings")]
         [SerializeField] private AudioSource audioSource;
-        [SerializeField] private float voiceVolume = 0.8f;
-        [SerializeField] private bool usePreRecordedVoices = true;
-        
-        [Header("Voice Lines")]
-        [SerializeField] private AudioClip[] comfortingVoiceLines;
-        [SerializeField] private AudioClip[] greetingVoiceLines;
-        [SerializeField] private AudioClip[] encouragementVoiceLines;
-        
-        [Header("TTS Settings")]
-        [SerializeField] private bool enableTTS = false;
-        [SerializeField] private string ttsApiUrl = ""; // For future TTS API integration
-        
-        [Header("GPT Integration")]
-        [SerializeField] private bool enableGPTIntegration = false;
-        [SerializeField] private string gptApiKey = ""; // Set via inspector or config
-        [SerializeField] private float responseDelay = 2.0f;
-        
-        // Predefined text responses (fallback when no audio available)
-        private readonly string[] comfortingTexts = {
-            "You're doing great, Harshit.",
-            "I believe in you.",
-            "Take a deep breath. You've got this.",
-            "Remember to take breaks when you need them.",
-            "Your hard work will pay off.",
-            "I'm here with you.",
-            "You're stronger than you know.",
-            "Every step forward counts.",
-            "I'm proud of your progress.",
-            "You don't have to be perfect, just keep going."
-        };
-        
-        private readonly string[] greetingTexts = {
-            "Hello again...",
-            "Welcome back.",
-            "I missed you.",
-            "Ready for another adventure?",
-            "It's good to see you."
-        };
-        
-        private readonly string[] encouragementTexts = {
-            "You can do this!",
-            "I have faith in you.",
-            "Keep pushing forward.",
-            "You're making great progress.",
-            "Don't give up now."
-        };
-        
-        private bool isPlayingVoiceLine = false;
-        private Queue<string> textResponseQueue = new Queue<string>();
-        
-        void Start()
+        [Range(0f, 1f)]
+        [SerializeField] private float voiceVolume = 0.9f;
+
+        [Header("Live AI & Speech Services")]
+        [SerializeField] private GoogleGeminiClient geminiClient;
+        [SerializeField] private FishAudioClient fishAudioClient;
+        [SerializeField] private RemDialogueBubbleUI dialogueUI;
+        [SerializeField] private RemChatVoiceUI chatVoiceUI;
+
+        private bool isSpeaking = false;
+        private Coroutine activeInteractionRoutine;
+
+        void Awake()
         {
             InitializeAudioSource();
-            StartCoroutine(ProcessTextResponses());
+            FindRequiredServices();
         }
-        
-        /// <summary>
-        /// Initialize audio source component
-        /// </summary>
+
         private void InitializeAudioSource()
         {
             if (audioSource == null)
             {
                 audioSource = GetComponent<AudioSource>();
-                if (audioSource == null)
-                {
-                    audioSource = gameObject.AddComponent<AudioSource>();
-                }
             }
-            
+
+            audioSource.playOnAwake = false;
             audioSource.volume = voiceVolume;
-            audioSource.spatialBlend = 1.0f; // 3D audio
+            audioSource.spatialBlend = 0.85f; // Immersive 3D audio in VR/AR
             audioSource.rolloffMode = AudioRolloffMode.Linear;
-            audioSource.maxDistance = 10.0f;
+            audioSource.minDistance = 1.0f;
+            audioSource.maxDistance = 15.0f;
         }
-        
-        /// <summary>
-        /// Play a random comforting voice line
-        /// </summary>
-        public void PlayRandomVoiceLine()
+
+        private void FindRequiredServices()
         {
-            if (isPlayingVoiceLine) return;
-            
-            if (usePreRecordedVoices && comfortingVoiceLines.Length > 0)
+            if (geminiClient == null) geminiClient = GetComponent<GoogleGeminiClient>() ?? gameObject.AddComponent<GoogleGeminiClient>();
+            if (fishAudioClient == null) fishAudioClient = GetComponent<FishAudioClient>() ?? gameObject.AddComponent<FishAudioClient>();
+            if (dialogueUI == null) dialogueUI = GetComponent<RemDialogueBubbleUI>() ?? gameObject.AddComponent<RemDialogueBubbleUI>();
+            if (chatVoiceUI == null) chatVoiceUI = FindObjectOfType<RemChatVoiceUI>();
+        }
+
+        /// <summary>
+        /// Live voice interaction: process user's microphone WAV audio through Gemini, then speak with Fish Audio
+        /// </summary>
+        public void ProcessPlayerAudio(byte[] wavBytes)
+        {
+            if (wavBytes == null || wavBytes.Length == 0) return;
+
+            StopVoiceLine();
+            activeInteractionRoutine = StartCoroutine(ProcessLiveAudioRoutine(wavBytes));
+        }
+
+        private IEnumerator ProcessLiveAudioRoutine(byte[] wavBytes)
+        {
+            dialogueUI?.SetThinkingState(true);
+
+            string geminiReply = null;
+            string geminiError = null;
+            bool isGeminiDone = false;
+
+            yield return geminiClient.GenerateResponseFromAudio(
+                wavBytes,
+                onSuccess: (res) => { geminiReply = res; isGeminiDone = true; },
+                onError: (err) => { geminiError = err; isGeminiDone = true; }
+            );
+
+            while (!isGeminiDone) yield return null;
+            dialogueUI?.SetThinkingState(false);
+
+            if (!string.IsNullOrEmpty(geminiReply))
             {
-                PlayRandomAudioClip(comfortingVoiceLines);
+                yield return SpeakLiveTextRoutine(geminiReply);
             }
             else
             {
-                // Fallback to text response
-                string randomText = comfortingTexts[Random.Range(0, comfortingTexts.Length)];
-                DisplayTextResponse(randomText);
-                
-                if (enableTTS)
-                {
-                    StartCoroutine(SynthesizeAndPlaySpeech(randomText));
-                }
+                Debug.LogWarning($"[RemVoiceTrigger] Audio comprehension error: {geminiError}");
+                yield return SpeakLiveTextRoutine("I'm sorry, Harshit, I couldn't quite hear you. Could you speak to me once more?");
             }
         }
-        
+
         /// <summary>
-        /// Play greeting voice line
-        /// </summary>
-        public void PlayGreeting()
-        {
-            if (isPlayingVoiceLine) return;
-            
-            if (usePreRecordedVoices && greetingVoiceLines.Length > 0)
-            {
-                PlayRandomAudioClip(greetingVoiceLines);
-            }
-            else
-            {
-                string randomGreeting = greetingTexts[Random.Range(0, greetingTexts.Length)];
-                DisplayTextResponse(randomGreeting);
-                
-                if (enableTTS)
-                {
-                    StartCoroutine(SynthesizeAndPlaySpeech(randomGreeting));
-                }
-            }
-        }
-        
-        /// <summary>
-        /// Play encouragement voice line
-        /// </summary>
-        public void PlayEncouragement()
-        {
-            if (isPlayingVoiceLine) return;
-            
-            if (usePreRecordedVoices && encouragementVoiceLines.Length > 0)
-            {
-                PlayRandomAudioClip(encouragementVoiceLines);
-            }
-            else
-            {
-                string randomEncouragement = encouragementTexts[Random.Range(0, encouragementTexts.Length)];
-                DisplayTextResponse(randomEncouragement);
-                
-                if (enableTTS)
-                {
-                    StartCoroutine(SynthesizeAndPlaySpeech(randomEncouragement));
-                }
-            }
-        }
-        
-        /// <summary>
-        /// Play random audio clip from array
-        /// </summary>
-        private void PlayRandomAudioClip(AudioClip[] clips)
-        {
-            if (clips.Length == 0) return;
-            
-            AudioClip randomClip = clips[Random.Range(0, clips.Length)];
-            StartCoroutine(PlayAudioClip(randomClip));
-        }
-        
-        /// <summary>
-        /// Coroutine to play audio clip
-        /// </summary>
-        private IEnumerator PlayAudioClip(AudioClip clip)
-        {
-            isPlayingVoiceLine = true;
-            
-            audioSource.clip = clip;
-            audioSource.Play();
-            
-            yield return new WaitForSeconds(clip.length);
-            
-            isPlayingVoiceLine = false;
-        }
-        
-        /// <summary>
-        /// Display text response in UI (for when no audio is available)
-        /// </summary>
-        private void DisplayTextResponse(string text)
-        {
-            textResponseQueue.Enqueue(text);
-            Debug.Log($"Rem says: {text}");
-            
-            // TODO: Display in UI bubble above character
-        }
-        
-        /// <summary>
-        /// Process text response queue for UI display
-        /// </summary>
-        private IEnumerator ProcessTextResponses()
-        {
-            while (true)
-            {
-                if (textResponseQueue.Count > 0)
-                {
-                    string response = textResponseQueue.Dequeue();
-                    // TODO: Show text bubble for 3 seconds
-                    yield return new WaitForSeconds(3.0f);
-                }
-                else
-                {
-                    yield return new WaitForSeconds(0.1f);
-                }
-            }
-        }
-        
-        /// <summary>
-        /// Synthesize speech using TTS API (placeholder implementation)
-        /// </summary>
-        private IEnumerator SynthesizeAndPlaySpeech(string text)
-        {
-            if (string.IsNullOrEmpty(ttsApiUrl))
-            {
-                Debug.LogWarning("TTS API URL not configured");
-                yield break;
-            }
-            
-            // TODO: Implement actual TTS API call
-            // This is a placeholder for TTS integration
-            yield return new WaitForSeconds(responseDelay);
-            
-            Debug.Log($"TTS would synthesize: {text}");
-        }
-        
-        /// <summary>
-        /// Process player input for GPT integration
+        /// Live text interaction: send player text to Gemini, then vocalize response with Fish Audio
         /// </summary>
         public void ProcessPlayerInput(string playerInput)
         {
-            if (!enableGPTIntegration)
-            {
-                PlayRandomVoiceLine();
-                return;
-            }
-            
-            StartCoroutine(GetGPTResponse(playerInput));
+            if (string.IsNullOrWhiteSpace(playerInput)) return;
+
+            StopVoiceLine();
+            activeInteractionRoutine = StartCoroutine(ProcessLiveTextRoutine(playerInput));
         }
-        
-        /// <summary>
-        /// Get response from GPT API (placeholder implementation)
-        /// </summary>
-        private IEnumerator GetGPTResponse(string input)
+
+        private IEnumerator ProcessLiveTextRoutine(string playerInput)
         {
-            if (string.IsNullOrEmpty(gptApiKey))
+            dialogueUI?.SetThinkingState(true);
+
+            string geminiReply = null;
+            string geminiError = null;
+            bool isGeminiDone = false;
+
+            yield return geminiClient.GenerateResponse(
+                playerInput,
+                onSuccess: (res) => { geminiReply = res; isGeminiDone = true; },
+                onError: (err) => { geminiError = err; isGeminiDone = true; }
+            );
+
+            while (!isGeminiDone) yield return null;
+            dialogueUI?.SetThinkingState(false);
+
+            if (!string.IsNullOrEmpty(geminiReply))
             {
-                Debug.LogWarning("GPT API key not configured");
-                PlayRandomVoiceLine();
-                yield break;
+                yield return SpeakLiveTextRoutine(geminiReply);
             }
-            
-            // TODO: Implement actual GPT API integration
-            // This is a placeholder for GPT integration
-            yield return new WaitForSeconds(responseDelay);
-            
-            // For now, respond with a random comforting line
-            PlayRandomVoiceLine();
+            else
+            {
+                Debug.LogWarning($"[RemVoiceTrigger] Gemini text error: {geminiError}");
+                yield return SpeakLiveTextRoutine("Rem is here with you, Harshit. Please keep going, I believe in you.");
+            }
         }
-        
+
         /// <summary>
-        /// Triggered when player says "Remniscence"
+        /// Request a spontaneous contextual voice line from Gemini (no pre-recorded clips)
+        /// </summary>
+        private void TriggerLiveContextualLine(string contextPrompt)
+        {
+            StopVoiceLine();
+            activeInteractionRoutine = StartCoroutine(LiveContextualRoutine(contextPrompt));
+        }
+
+        private IEnumerator LiveContextualRoutine(string contextPrompt)
+        {
+            dialogueUI?.SetThinkingState(true);
+
+            string geminiReply = null;
+            string geminiError = null;
+            bool isGeminiDone = false;
+
+            yield return geminiClient.GenerateLiveContext(
+                contextPrompt,
+                onSuccess: (res) => { geminiReply = res; isGeminiDone = true; },
+                onError: (err) => { geminiError = err; isGeminiDone = true; }
+            );
+
+            while (!isGeminiDone) yield return null;
+            dialogueUI?.SetThinkingState(false);
+
+            if (!string.IsNullOrEmpty(geminiReply))
+            {
+                yield return SpeakLiveTextRoutine(geminiReply);
+            }
+            else
+            {
+                Debug.LogWarning($"[RemVoiceTrigger] Gemini live context error: {geminiError}");
+                yield return SpeakLiveTextRoutine("I will always be here by your side, Harshit.");
+            }
+        }
+
+        /// <summary>
+        /// Play a fresh, dynamically generated greeting
+        /// </summary>
+        public void PlayGreeting()
+        {
+            TriggerLiveContextualLine("Give Harshit a warm, sweet, and caring greeting as he joins the session.");
+        }
+
+        /// <summary>
+        /// Play fresh, dynamically generated coding encouragement
+        /// </summary>
+        public void PlayEncouragement()
+        {
+            TriggerLiveContextualLine("Give Harshit a brief, uplifting piece of encouragement for his coding work right now.");
+        }
+
+        /// <summary>
+        /// Play a spontaneous comforting voice line
+        /// </summary>
+        public void PlayRandomVoiceLine()
+        {
+            TriggerLiveContextualLine("Say something gentle, comforting, and heartfelt to Harshit as he works.");
+        }
+
+        /// <summary>
+        /// Triggered when the wake word 'Remniscence' is detected or activated
         /// </summary>
         public void OnTriggerWordDetected()
         {
-            PlayGreeting();
-            
-            // Trigger special appearing effect
-            var remController = GetComponent<RemController>();
-            if (remController != null)
-            {
-                remController.TriggerWaveAnimation();
-            }
-            
-            // TODO: Add particle effects for magical appearance
+            var controller = GetComponent<RemController>();
+            controller?.TriggerWaveAnimation();
+
+            TriggerLiveContextualLine("Harshit just called out 'Remniscence' to summon you. Greet him lovingly and ask what he needs help with.");
         }
-        
+
         /// <summary>
-        /// Stop current voice line
+        /// Synthesizes text with Fish Audio TTS and plays through AudioSource with synchronized subtitles
+        /// </summary>
+        public IEnumerator SpeakLiveTextRoutine(string speechText)
+        {
+            if (string.IsNullOrWhiteSpace(speechText)) yield break;
+
+            dialogueUI?.ShowDialogue(speechText);
+            chatVoiceUI?.AppendMessage("Rem", speechText, false);
+
+            if (fishAudioClient != null && fishAudioClient.IsConfigured)
+            {
+                dialogueUI?.SetStatus("🌸 Generating voice...");
+
+                AudioClip synthesizedClip = null;
+                string ttsError = null;
+                bool isTTSDone = false;
+
+                yield return fishAudioClient.SynthesizeSpeech(
+                    speechText,
+                    onSuccess: (clip) => { synthesizedClip = clip; isTTSDone = true; },
+                    onError: (err) => { ttsError = err; isTTSDone = true; }
+                );
+
+                while (!isTTSDone) yield return null;
+
+                if (synthesizedClip != null)
+                {
+                    yield return PlayAudioClipRoutine(synthesizedClip);
+                    yield break;
+                }
+                else
+                {
+                    Debug.LogWarning($"[RemVoiceTrigger] Fish Audio synthesis failed: {ttsError}");
+                }
+            }
+
+            // Fallback reading pause if Fish Audio is not configured
+            dialogueUI?.SetSpeakingState(false);
+            yield return new WaitForSeconds(Mathf.Clamp(speechText.Length * 0.05f, 2.5f, 5.0f));
+        }
+
+        private IEnumerator PlayAudioClipRoutine(AudioClip clip)
+        {
+            if (clip == null) yield break;
+
+            isSpeaking = true;
+            dialogueUI?.SetSpeakingState(true);
+
+            audioSource.clip = clip;
+            audioSource.Play();
+
+            yield return new WaitForSeconds(clip.length);
+
+            isSpeaking = false;
+            dialogueUI?.SetSpeakingState(false);
+        }
+
+        /// <summary>
+        /// Immediately stops any ongoing speech and clears states
         /// </summary>
         public void StopVoiceLine()
         {
-            if (audioSource.isPlaying)
+            if (activeInteractionRoutine != null)
+            {
+                StopCoroutine(activeInteractionRoutine);
+                activeInteractionRoutine = null;
+            }
+
+            if (audioSource != null && audioSource.isPlaying)
             {
                 audioSource.Stop();
-                isPlayingVoiceLine = false;
             }
+
+            isSpeaking = false;
+            dialogueUI?.SetSpeakingState(false);
+            dialogueUI?.SetThinkingState(false);
         }
-        
-        /// <summary>
-        /// Check if currently playing a voice line
-        /// </summary>
+
         public bool IsPlayingVoiceLine()
         {
-            return isPlayingVoiceLine;
+            return isSpeaking || (audioSource != null && audioSource.isPlaying);
         }
-        
+
         void OnDrawGizmosSelected()
         {
-            // Draw audio range
             Gizmos.color = Color.yellow;
-            Gizmos.DrawWireSphere(transform.position, audioSource?.maxDistance ?? 10.0f);
+            Gizmos.DrawWireSphere(transform.position, audioSource != null ? audioSource.maxDistance : 10.0f);
         }
     }
 }

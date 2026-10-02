@@ -25,25 +25,48 @@ Project Remniscence is a Unity-based AR/VR application that brings the character
 - **AR Mode**: Rem appears in your real environment
 - **Desktop Mode**: Traditional 3D interaction for development
 
-### 🧠 AI Integration (Planned)
-- GPT integration for conversational AI
-- Context-aware responses
-- Personalized interactions based on your mood and activity
+### 🧠 AI & Live Voice Integration (Pure Live Architecture)
+- **Live Voice Microphone Input (`RemVoiceInput.cs` + `WavUtility.cs`)**: Hold to talk (`V` key, XR button, or HUD button) to speak to Rem in real-time.
+- **Google Gemini Conversational AI (`GoogleGeminiClient.cs`)**: Multimodal audio and text comprehension; processes user speech directly and responds dynamically in Rem's persona.
+- **Fish Audio Real-Time TTS (`FishAudioClient.cs`)**: Live anime voice generation (`https://api.fish.audio`) streaming speech directly into Unity's `AudioSource`.
+- **Pre-recorded Clips Retired**: All static `AudioClip[]` dependencies are retired in favor of 100% spontaneous, live conversational dialogue.
+- **World-Space Dialogue Bubble (`RemDialogueBubbleUI.cs`)**: 3D billboard speech bubble with typewriter text and real-time status badges (*"Listening..."*, *"Thinking..."*, *"Speaking..."*).
+- **Companion Quick Prompts HUD (`RemCompanionHUD.cs`)**: Instant push-to-talk button, custom chat input, and live AI prompt chips.
+
+### 🏰 Big Interactive Background & VR/AR Support (New)
+- **VR Immersive Room Mode (`RemXRModeManager.cs`)**: Full 3D study room with parquet wood flooring, arched windows, and spatial lighting.
+- **AR Passthrough Mode**: Seamlessly clears room geometry and activates real-world plane anchoring so Rem stands in your physical room.
+- **Interactive Props (`RemInteractiveProp.cs` & `RemEnvironmentManager.cs`)**: Interactive tea set, coding desk, and bookshelf that trigger live reactions and dialogue from Rem when clicked or hovered with XR rays.
+- **Unified Chat & Voice Panel (`RemChatVoiceUI.cs`)**: Multi-turn scrollable conversation history, microphone push-to-talk with audio meter, text input, prompt action chips, and instant VR/AR toggle.
 
 ## 📂 Project Structure
 
 ```
 Remniscence/
-├── Models/                 # 3D character models (VRM format)
-├── Audio/                  # Voice lines and sound effects
-│   └── rem_quotes/        # Individual quote audio files
-├── Scripts/               # Unity C# scripts
-│   ├── RemController.cs   # Main character controller
-│   ├── RemVoiceTrigger.cs # Voice and audio system
-│   └── RemXRInteraction.cs # XR input handling
-├── Scenes/                # Unity scene files
-├── Assets/                # General assets and resources
-└── README.md             # This file
+├── Audio/
+│   └── VOICE_LINES.md           # Character voice line inspiration catalog
+├── Models/
+│   ├── Rem.glb                  # 3D character model (T-Pose, 21.7k polygons)
+│   ├── Rem.obj                  # Wavefront OBJ format
+│   ├── rem_tpose_concept.jpg    # Orthographic concept design sheet
+│   └── view_rem.html            # Standalone offline 3D model viewer
+├── Scripts/
+│   ├── FishAudioClient.cs       # Fish Audio live TTS API client
+│   ├── GoogleGeminiClient.cs    # Google Gemini conversational AI integration
+│   ├── RemChatVoiceUI.cs        # Comprehensive in-game chat transcript & voice UI
+│   ├── RemCompanionHUD.cs       # Companion control HUD & push-to-talk controls
+│   ├── RemController.cs         # Smooth character tracking & positioning
+│   ├── RemDialogueBubbleUI.cs   # World-space billboard dialogue UI & status badges
+│   ├── RemEnvironmentManager.cs # Big 3D study background room & ambient atmosphere
+│   ├── RemInteractiveProp.cs    # Interactive background objects (tea set, books, desk)
+│   ├── RemVoiceInput.cs         # Real-time microphone capture & Push-to-Talk
+│   ├── RemVoiceTrigger.cs       # Pure live voice orchestration (clips retired)
+│   ├── RemXRInteraction.cs      # XR Toolkit & Desktop interaction handler
+│   ├── RemXRModeManager.cs      # VR Immersive Room vs AR Passthrough toggle
+│   └── WavUtility.cs            # PCM 16-bit WAV encoder for live audio requests
+├── UNITY_SETUP.md               # Unity configuration guide (Linux)
+├── WINDOWS_SETUP.md             # Windows Unity & XR setup guide
+└── README.md                    # This file
 ```
 
 ## 🛠️ Setup Instructions

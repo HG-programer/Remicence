@@ -1,144 +1,198 @@
 using UnityEngine;
-using UnityEngine.XR.Interaction.Toolkit;
 using System.Collections;
 
 namespace Remniscence
 {
     /// <summary>
-    /// Main controller for Rem character - handles positioning, animations, and basic interactions
+    /// Main controller for Rem - handles smooth positioning, head look-at, organic animations, and proximity detection.
+    /// Glitch-free smooth damping and robust camera discovery for both Desktop and XR modes.
     /// </summary>
     public class RemController : MonoBehaviour
     {
-        [Header("Character Settings")]
+        [Header("Player Tracking")]
         [SerializeField] private Transform playerCamera;
-        [SerializeField] private float distanceFromPlayer = 2.0f;
-        [SerializeField] private float heightOffset = 0.5f;
-        [SerializeField] private float rotationSpeed = 2.0f;
-        
+        [SerializeField] private float distanceFromPlayer = 1.8f;
+        [SerializeField] private float heightOffset = 0.0f;
+        [SerializeField] private float positionSmoothTime = 0.6f;
+        [SerializeField] private float rotationSpeed = 3.5f;
+        [SerializeField] private float repositionThreshold = 0.8f;
+
         [Header("Animation")]
         [SerializeField] private Animator characterAnimator;
-        [SerializeField] private float idleAnimationInterval = 5.0f;
-        
-        [Header("Interaction")]
-        [SerializeField] private LayerMask interactionLayer = 1;
-        [SerializeField] private float maxInteractionDistance = 3.0f;
-        
+        [SerializeField] private float idleAnimationInterval = 6.0f;
+        [SerializeField] private bool lookAtPlayerHead = true;
+
+        [Header("Interaction Proximity")]
+        [SerializeField] private float maxInteractionDistance = 2.8f;
+
+        private Vector3 currentVelocity;
         private Vector3 targetPosition;
         private Quaternion targetRotation;
         private bool isPlayerNearby = false;
-        private float lastIdleTime;
-        
-        // Animation state hashes for performance
-        private readonly int idleHash = Animator.StringToHash("Idle");
-        private readonly int waveHash = Animator.StringToHash("Wave");
-        private readonly int lookAtPlayerHash = Animator.StringToHash("LookAtPlayer");
-        
+
+        // Animator parameters
+        private int idleHash;
+        private int waveHash;
+        private bool hasIdleVariationParam = false;
+
+        void Awake()
+        {
+            if (characterAnimator == null)
+            {
+                characterAnimator = GetComponentInChildren<Animator>();
+            }
+
+            idleHash = Animator.StringToHash("Idle");
+            waveHash = Animator.StringToHash("Wave");
+
+            CheckAnimatorParameters();
+        }
+
         void Start()
         {
+            EnsurePlayerCamera();
             InitializeRemPosition();
             StartCoroutine(IdleAnimationLoop());
         }
-        
+
         void Update()
         {
+            if (playerCamera == null)
+            {
+                EnsurePlayerCamera();
+                if (playerCamera == null) return;
+            }
+
             UpdatePlayerTracking();
             UpdatePosition();
             UpdateRotation();
             CheckPlayerProximity();
         }
-        
+
         /// <summary>
-        /// Initialize Rem's starting position relative to player
+        /// Robust search for player camera across standard, XR Origin, and WebXR setups
+        /// </summary>
+        private void EnsurePlayerCamera()
+        {
+            if (playerCamera != null) return;
+
+            if (Camera.main != null)
+            {
+                playerCamera = Camera.main.transform;
+                return;
+            }
+
+            // Fallback: look for any camera tagged or active in scene
+            var cam = FindObjectOfType<Camera>();
+            if (cam != null)
+            {
+                playerCamera = cam.transform;
+            }
+        }
+
+        private void CheckAnimatorParameters()
+        {
+            if (characterAnimator == null) return;
+
+            foreach (var param in characterAnimator.parameters)
+            {
+                if (param.name == "IdleVariation")
+                {
+                    hasIdleVariationParam = true;
+                    break;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Initialize Rem's starting position in front of player
         /// </summary>
         private void InitializeRemPosition()
         {
-            if (playerCamera == null)
-            {
-                playerCamera = Camera.main?.transform;
-                if (playerCamera == null)
-                {
-                    Debug.LogWarning("RemController: No player camera found!");
-                    return;
-                }
-            }
-            
-            // Position Rem in front of the player
+            if (playerCamera == null) return;
+
             Vector3 forward = playerCamera.forward;
-            forward.y = 0; // Keep on ground level
+            forward.y = 0;
+            if (forward == Vector3.zero) forward = Vector3.forward;
             forward.Normalize();
-            
+
             targetPosition = playerCamera.position + forward * distanceFromPlayer;
-            targetPosition.y += heightOffset;
-            
+            targetPosition.y = playerCamera.position.y + heightOffset;
+
             transform.position = targetPosition;
-            
+
             // Face the player
-            Vector3 lookDirection = (playerCamera.position - transform.position).normalized;
+            Vector3 lookDirection = (playerCamera.position - transform.position);
             lookDirection.y = 0;
-            targetRotation = Quaternion.LookRotation(lookDirection);
-            transform.rotation = targetRotation;
+            if (lookDirection != Vector3.zero)
+            {
+                targetRotation = Quaternion.LookRotation(lookDirection);
+                transform.rotation = targetRotation;
+            }
         }
-        
+
         /// <summary>
-        /// Update target position based on player movement
+        /// Update target position smoothly when player moves beyond reposition threshold
         /// </summary>
         private void UpdatePlayerTracking()
         {
             if (playerCamera == null) return;
-            
+
             Vector3 playerPos = playerCamera.position;
-            Vector3 currentDistance = transform.position - playerPos;
-            
-            // Only update position if player has moved significantly
-            if (currentDistance.magnitude > distanceFromPlayer + 1.0f)
+            Vector3 diff = transform.position - playerPos;
+            diff.y = 0;
+
+            float currentDistance = diff.magnitude;
+
+            // Reposition smoothly if player moves too far or too close
+            if (Mathf.Abs(currentDistance - distanceFromPlayer) > repositionThreshold)
             {
                 Vector3 forward = playerCamera.forward;
                 forward.y = 0;
+                if (forward == Vector3.zero) forward = Vector3.forward;
                 forward.Normalize();
-                
+
                 targetPosition = playerPos + forward * distanceFromPlayer;
                 targetPosition.y = playerPos.y + heightOffset;
             }
         }
-        
+
         /// <summary>
-        /// Smoothly move to target position
+        /// Smooth organic dampening to eliminate jittering
         /// </summary>
         private void UpdatePosition()
         {
-            transform.position = Vector3.Lerp(transform.position, targetPosition, Time.deltaTime * 2.0f);
+            transform.position = Vector3.SmoothDamp(transform.position, targetPosition, ref currentVelocity, positionSmoothTime);
         }
-        
+
         /// <summary>
-        /// Smoothly rotate to look at player
+        /// Smoothly rotate towards player
         /// </summary>
         private void UpdateRotation()
         {
             if (playerCamera == null) return;
-            
-            Vector3 lookDirection = (playerCamera.position - transform.position).normalized;
+
+            Vector3 lookDirection = playerCamera.position - transform.position;
             lookDirection.y = 0;
-            
-            if (lookDirection != Vector3.zero)
+
+            if (lookDirection.sqrMagnitude > 0.001f)
             {
-                targetRotation = Quaternion.LookRotation(lookDirection);
-                transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, 
-                    Time.deltaTime * rotationSpeed);
+                targetRotation = Quaternion.LookRotation(lookDirection.normalized);
+                transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, Time.deltaTime * rotationSpeed);
             }
         }
-        
+
         /// <summary>
         /// Check if player is within interaction range
         /// </summary>
         private void CheckPlayerProximity()
         {
             if (playerCamera == null) return;
-            
+
             float distance = Vector3.Distance(transform.position, playerCamera.position);
             bool wasNearby = isPlayerNearby;
             isPlayerNearby = distance <= maxInteractionDistance;
-            
-            // Trigger events when player enters/exits proximity
+
             if (isPlayerNearby && !wasNearby)
             {
                 OnPlayerEnterProximity();
@@ -148,31 +202,20 @@ namespace Remniscence
                 OnPlayerExitProximity();
             }
         }
-        
-        /// <summary>
-        /// Handle player entering interaction range
-        /// </summary>
+
         private void OnPlayerEnterProximity()
         {
             TriggerWaveAnimation();
-            // Could trigger voice line here
         }
-        
-        /// <summary>
-        /// Handle player leaving interaction range
-        /// </summary>
+
         private void OnPlayerExitProximity()
         {
-            // Return to idle state
-            if (characterAnimator != null)
+            if (characterAnimator != null && characterAnimator.HasState(0, idleHash))
             {
                 characterAnimator.SetTrigger(idleHash);
             }
         }
-        
-        /// <summary>
-        /// Trigger wave animation
-        /// </summary>
+
         public void TriggerWaveAnimation()
         {
             if (characterAnimator != null)
@@ -180,56 +223,47 @@ namespace Remniscence
                 characterAnimator.SetTrigger(waveHash);
             }
         }
-        
-        /// <summary>
-        /// Coroutine for random idle animations
-        /// </summary>
+
         private IEnumerator IdleAnimationLoop()
         {
             while (true)
             {
-                yield return new WaitForSeconds(idleAnimationInterval + Random.Range(-1f, 2f));
-                
-                if (!isPlayerNearby && characterAnimator != null)
+                yield return new WaitForSeconds(idleAnimationInterval + Random.Range(-1.5f, 2.5f));
+
+                if (!isPlayerNearby && characterAnimator != null && hasIdleVariationParam)
                 {
-                    // Random idle variations
                     int randomIdle = Random.Range(0, 3);
                     characterAnimator.SetInteger("IdleVariation", randomIdle);
                 }
             }
         }
-        
+
         /// <summary>
         /// Called when player interacts with Rem (via XR or mouse click)
         /// </summary>
         public void OnPlayerInteract()
         {
             TriggerWaveAnimation();
-            
-            // Get RemVoiceTrigger component and play voice line
+
             var voiceTrigger = GetComponent<RemVoiceTrigger>();
             if (voiceTrigger != null)
             {
                 voiceTrigger.PlayRandomVoiceLine();
             }
         }
-        
-        /// <summary>
-        /// Teleport Rem to a specific position
-        /// </summary>
+
         public void TeleportTo(Vector3 position)
         {
             targetPosition = position;
             transform.position = position;
+            currentVelocity = Vector3.zero;
         }
-        
+
         void OnDrawGizmosSelected()
         {
-            // Draw interaction range
             Gizmos.color = Color.cyan;
             Gizmos.DrawWireSphere(transform.position, maxInteractionDistance);
-            
-            // Draw distance from player
+
             Gizmos.color = Color.green;
             if (playerCamera != null)
             {
