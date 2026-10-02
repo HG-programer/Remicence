@@ -110,6 +110,11 @@ public class MainActivity extends AppCompatActivity {
             settings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
         }
 
+        settings.setCacheMode(WebSettings.LOAD_DEFAULT);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            webView.setRendererPriorityPolicy(WebView.RENDERER_PRIORITY_IMPORTANT, false);
+        }
+
         webView.setLayerType(View.LAYER_TYPE_HARDWARE, null);
 
         // Google WebViewAssetLoader: serves local assets via virtual https://appassets.androidplatform.net
