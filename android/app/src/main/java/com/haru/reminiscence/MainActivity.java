@@ -32,8 +32,6 @@ public class MainActivity extends AppCompatActivity {
     // Default fallback LAN IP for local WiFi companion
     private static final String DEFAULT_SERVER_URL = "http://192.168.29.235:8080/";
 
-    @SuppressLint("SetJavaScriptEnabled")
-    @Override
     protected void enterFullscreen() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             final WindowInsetsController insetsController = getWindow().getInsetsController();
