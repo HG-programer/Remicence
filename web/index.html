@@ -1272,7 +1272,11 @@ Persona & Voice Guidelines:
 
                 // Whole-body subtle breathing in idle & step bobbing in walk
                 if (window.remBaseY !== undefined) {
-                    remModel.position.y = window.remBaseY + Math.sin(time * 2.2) * 0.003 * (1.0 - this.walkWeight) + Math.abs(Math.sin(this.walkPhase)) * 0.012 * this.walkWeight;
+                    // The 3D model is a static, un-rigged statue (no bones for knees).
+                    // Replace rigid hopping with a graceful maid glide and elegant shoulder sway.
+                    remModel.position.y = window.remBaseY + Math.sin(time * 2.2) * 0.003 * (1.0 - this.walkWeight);
+                    remModel.rotation.z = Math.sin(this.walkPhase * 0.5) * 0.02 * this.walkWeight;
+                    remModel.rotation.x = Math.abs(Math.sin(this.walkPhase)) * 0.015 * this.walkWeight;
                 }
 
                 // NATURAL HEAD GAZE TRACKING (Head and eyes track Harshit within natural ±50° cone)
