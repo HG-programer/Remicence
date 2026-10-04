@@ -1276,7 +1276,16 @@ Persona & Voice Guidelines:
                     // Replace rigid hopping with a graceful maid glide and elegant shoulder sway.
                     remModel.position.y = window.remBaseY + Math.sin(time * 2.2) * 0.003 * (1.0 - this.walkWeight);
                     remModel.rotation.z = Math.sin(this.walkPhase * 0.5) * 0.02 * this.walkWeight;
-                    remModel.rotation.x = Math.abs(Math.sin(this.walkPhase)) * 0.015 * this.walkWeight;
+                    
+                    // Engaging body language: lean forward gently with clasped hands when speaking
+                    let talkingLean = 0;
+                    if (window.State && window.State.isSpeaking) {
+                        talkingLean = 0.035 + Math.sin(time * 4.0) * 0.01;
+                    }
+                    // Smoothly interpolate the talking lean to avoid snapping
+                    window.currentLean = THREE.MathUtils.lerp(window.currentLean || 0, talkingLean, 0.05);
+                    
+                    remModel.rotation.x = (Math.abs(Math.sin(this.walkPhase)) * 0.015 * this.walkWeight) + window.currentLean;
                 }
 
                 // NATURAL HEAD GAZE TRACKING (Head and eyes track Harshit within natural ±50° cone)
