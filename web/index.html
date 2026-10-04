@@ -676,7 +676,7 @@ Persona & Voice Guidelines:
                 renderer.setPixelRatio(Math.min(window.devicePixelRatio, isMobile ? 1.2 : 2.0));
 
                 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-                renderer.toneMappingExposure = 0.85;
+                renderer.toneMappingExposure = 1.1; // Brighter anime high-key exposure
                 renderer.shadowMap.enabled = true;
                 renderer.shadowMap.type = isMobile ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
                 renderer.outputEncoding = THREE.sRGBEncoding;
@@ -784,6 +784,32 @@ Persona & Voice Guidelines:
             panoTex.encoding = THREE.sRGBEncoding;
             scene.background = panoTex;
             window.lugnicaSkyPano = panoTex;
+            
+            // 1. Image-Based Lighting (IBL)
+            // This applies the anime sky's colors and reflections to Rem's skin, dress, and the marble geometry!
+            scene.environment = panoTex;
+            
+            // 2. Atmospheric Depth (Anime Sky Fog)
+            // Blends the 3D geometry seamlessly into the panoramic skybox to create massive perceived scale.
+            scene.fog = new THREE.FogExp2(0xa5cbf7, 0.022);
+            
+            // 3. Cinematic Volumetric God Rays
+            // Sun shafts pouring onto the balcony to create that ethereal Re:Zero morning aesthetic.
+            if (!window.isMobileDevice) {
+                const rayGeo = new THREE.CylinderGeometry(0.6, 6.0, 18, 32, 1, true);
+                const rayMat = new THREE.MeshBasicMaterial({
+                    color: 0xfff4d9,
+                    transparent: true,
+                    opacity: 0.12,
+                    side: THREE.DoubleSide,
+                    depthWrite: false,
+                    blending: THREE.AdditiveBlending
+                });
+                godRays = new THREE.Mesh(rayGeo, rayMat);
+                godRays.position.set(3, 7, -4);
+                godRays.rotation.set(0.4, 0, -0.4);
+                scene.add(godRays);
+            }
 
             // Pokemon GO AR Ground Shadow Plane (Grounds Rem onto real floors & desks with soft contact shadow)
             const shadowPlaneGeo = new THREE.PlaneGeometry(30, 30);
@@ -806,7 +832,7 @@ Persona & Voice Guidelines:
 
             // Sun light for outdoor terrace architecture and distant scenery
             const isMobile = window.isMobileDevice;
-            const sunLight = new THREE.DirectionalLight(0xfff1d6, 0.65);
+            const sunLight = new THREE.DirectionalLight(0xfff8ee, 1.35); // Brighter, high-contrast sun
             sunLight.position.set(16, 28, -18);
             sunLight.castShadow = true;
             sunLight.shadow.mapSize.width = isMobile ? 1024 : 2048;
@@ -859,10 +885,11 @@ Persona & Voice Guidelines:
             const floorMat = new THREE.MeshStandardMaterial({
                 map: royalPavingTex,
                 normalMap: royalPavingNorm,
-                normalScale: new THREE.Vector2(1.5, 1.5),
-                roughness: 0.78,
-                metalness: 0.02,
-                color: 0xded5c6
+                normalScale: new THREE.Vector2(1.2, 1.2),
+                roughness: 0.65, // More polished stone
+                metalness: 0.05,
+                color: 0xfff3e3, // Warmer anime tone
+                envMapIntensity: 0.8
             });
             terraceFloor = new THREE.Mesh(new THREE.CylinderGeometry(8.8, 8.8, 0.45, 64), floorMat);
             terraceFloor.position.y = -0.225;
@@ -871,9 +898,10 @@ Persona & Voice Guidelines:
 
             // Antique Gilded Inlay Rings framing the central mandala
             const goldInlayMat = new THREE.MeshStandardMaterial({
-                color: 0xa17c38,
-                roughness: 0.35,
-                metalness: 0.82
+                color: 0xd4af37, // True Royal Gold
+                roughness: 0.15, // Extremely smooth
+                metalness: 1.0,  // Pure metal
+                envMapIntensity: 2.0 // Reflects the anime sky brilliantly
             });
             const innerGoldRing = new THREE.Mesh(new THREE.TorusGeometry(3.68, 0.035, 12, 64), goldInlayMat);
             innerGoldRing.rotation.x = Math.PI / 2;
@@ -890,10 +918,11 @@ Persona & Voice Guidelines:
             const marbleMat = new THREE.MeshStandardMaterial({
                 map: marbleTex,
                 normalMap: marbleNorm,
-                normalScale: new THREE.Vector2(0.9, 0.9),
-                roughness: 0.65,
-                metalness: 0.02,
-                color: 0xd8cebf
+                normalScale: new THREE.Vector2(1.0, 1.0),
+                roughness: 0.25, // Highly polished marble
+                metalness: 0.05,
+                color: 0xffffff,
+                envMapIntensity: 1.5 // Glistens with the sky's reflection
             });
 
             // Molded perimeter kerb ring
@@ -1963,6 +1992,12 @@ Persona & Voice Guidelines:
             }
             controls.update();
 
+            // Cinematic Volumetric Shimmering
+            if (godRays && godRays.material) {
+                godRays.material.opacity = 0.12 + Math.sin(time * 0.5) * 0.04;
+                godRays.rotation.y = time * 0.02;
+            }
+
             // Render through Cinematic Post-Processing Pipeline (UnrealBloomPass)
             // When in AR mode, render directly with renderer to preserve transparent alpha background for camera feed!
             if (composer && !isARMode && (!renderer.xr || !renderer.xr.isPresenting)) {
@@ -2431,11 +2466,11 @@ Persona & Voice Guidelines:
             speechBubble.style.opacity = '1';
 
             if (typingTimeout) clearTimeout(typingTimeout);
-            speechText.innerText = "";
+            speechText.textContent = "";
             let i = 0;
             function typeNext() {
                 if (i < text.length) {
-                    speechText.innerText += text[i];
+                    speechText.textContent += text[i];
                     i++;
                     typingTimeout = setTimeout(typeNext, 25);
                 }
