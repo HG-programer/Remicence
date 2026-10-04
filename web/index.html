@@ -1829,7 +1829,7 @@ Persona & Voice Guidelines:
             });
 
             const isMobile = window.isMobileDevice;
-            const petalCount = isMobile ? 20 : 60;
+            const petalCount = isMobile ? 60 : 120;
             for (let i = 0; i < petalCount; i++) {
                 const petal = new THREE.Mesh(petalGeo, petalMat);
                 petal.position.set(
@@ -1846,7 +1846,7 @@ Persona & Voice Guidelines:
             }
 
             // Sparkling Mana Light Motes
-            const pCount = isMobile ? 40 : 120;
+            const pCount = isMobile ? 120 : 120;
             const pGeo = new THREE.BufferGeometry();
             const pPos = new Float32Array(pCount * 3);
             for (let i = 0; i < pCount * 3; i += 3) {
@@ -2534,7 +2534,7 @@ Persona & Voice Guidelines:
 
                 const data = await res.json();
                 let reply = data.candidates?.[0]?.content?.parts?.[0]?.text || "I'm right here with you, Harshit.";
-                reply = reply.replace(/\*.*?\*/g, '').replace(/[\*#`]/g, '').trim();
+                reply = reply.replace(/\s*\*.*?\*\s*/g, ' ').replace(/[\*#`]/g, '').replace(/\s{2,}/g, ' ').trim();
 
                 appendToHistory("Rem", reply, false);
                 setRemSubtitle(reply, "🌸 Rem is speaking...");
@@ -2722,7 +2722,7 @@ Persona & Voice Guidelines:
                 if (!res.ok) throw new Error("Audio Gemini request failed: " + res.status);
                 const data = await res.json();
                 let reply = data.candidates?.[0]?.content?.parts?.[0]?.text || "I hear your voice, Harshit!";
-                reply = reply.replace(/\*.*?\*/g, '').replace(/[\*#`]/g, '').trim();
+                reply = reply.replace(/\s*\*.*?\*\s*/g, ' ').replace(/[\*#`]/g, '').replace(/\s{2,}/g, ' ').trim();
 
                 appendToHistory("You", "[Spoke Voice Audio]", true);
                 appendToHistory("Rem", reply, false);
@@ -2942,3 +2942,4 @@ Persona & Voice Guidelines:
     </script>
 </body>
 </html>
+
