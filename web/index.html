@@ -1727,6 +1727,15 @@ Persona & Voice Guidelines:
                                 clone.receiveShadow = false;
                                 clone.visible = true; // Authentic serene anime smile!
                                 clone.renderOrder = 3;
+                                
+                                // FIX: Re-pivot geometry to center so scaling doesn't fly across screen
+                                clone.geometry = clone.geometry.clone();
+                                clone.geometry.computeBoundingBox();
+                                const center = new THREE.Vector3();
+                                clone.geometry.boundingBox.getCenter(center);
+                                clone.geometry.translate(-center.x, -center.y, -center.z);
+                                clone.position.add(center);
+
                                 window.remMouthSmile = clone;
                             } else {
                                 // Hair, BackHair, Acce
